@@ -47,6 +47,29 @@ export interface LoadedCharacter {
   dispose: () => void
 }
 
+/**
+ * Pins a dance in place by holding the hips' horizontal position.
+ *
+ * Mixamo animates the hips, and any clip downloaded without its In Place option
+ * ticked travels across the floor. The camera orbits a fixed point, so the
+ * character simply walks out of frame — which is what Salsa was doing.
+ *
+ * Only X and Z are held. Y is left alone, so bobbing, crouching, and jumping
+ * survive; zeroing the whole track would flatten the dance onto one level.
+ */
+function pinRootMotion(clip: THREE.AnimationClip) {
+  for (const track of clip.tracks) {
+    if (!/hips?\.position$/i.test(track.name)) continue
+    const values = track.values
+    const startX = values[0]
+    const startZ = values[2]
+    for (let i = 0; i < values.length; i += 3) {
+      values[i] = startX
+      values[i + 2] = startZ
+    }
+  }
+}
+
 const loader = new FBXLoader()
 
 function load(url: string): Promise<THREE.Group> {
@@ -136,6 +159,7 @@ export async function loadCharacter(
   const embedded = embeddedClipName ? group.animations[0] : undefined
   if (embedded && embeddedClipName) {
     embedded.name = embeddedClipName
+    pinRootMotion(embedded)
     clips.set(embeddedClipName, embedded)
   }
 
@@ -148,6 +172,7 @@ export async function loadCharacter(
       // Mixamo names nearly every clip "mixamo.com", so the filename is the
       // only thing that actually distinguishes one dance from another.
       clip.name = name
+      pinRootMotion(clip)
       return [name, clip] as const
     }),
   )
