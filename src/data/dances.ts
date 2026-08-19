@@ -10,7 +10,12 @@ export interface Dance {
   label: string
 }
 
-export const CHARACTER_URL = '/models/character.fbx'
+/** Built from BASE_URL rather than a leading slash, so the same code resolves
+ *  under the dev server, a packaged Electron app loading over file://, and the
+ *  Android bundle. An absolute path works only in the first of those. */
+const MODELS_BASE = `${import.meta.env.BASE_URL}models`
+
+export const CHARACTER_URL = `${MODELS_BASE}/character.fbx`
 
 /**
  * The character file was exported With Skin, so it already carries the clip
@@ -28,5 +33,8 @@ export const DANCES: Dance[] = [
 ]
 
 export const DANCE_URLS: Record<string, string> = Object.fromEntries(
-  DANCES.filter((d) => d.id !== EMBEDDED_CLIP_ID).map((d) => [d.id, `/models/dances/${d.id}.fbx`]),
+  DANCES.filter((d) => d.id !== EMBEDDED_CLIP_ID).map((d) => [
+    d.id,
+    `${MODELS_BASE}/dances/${d.id}.fbx`,
+  ]),
 )

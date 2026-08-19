@@ -3,6 +3,10 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  // Emit relative asset URLs. A packaged Electron app loads the page over
+  // file://, and Capacitor serves it from the app bundle, so an absolute
+  // "/assets/..." would resolve against the filesystem root and 404 in both.
+  base: './',
   server: {
     port: 5173,
     host: true,
