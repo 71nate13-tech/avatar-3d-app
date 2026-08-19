@@ -78,14 +78,7 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
         placeholder.dispose()
         scene.add(character.group)
 
-        // Y Bot and X Bot carry two plain materials: the body shell and the
-        // joints. Mapping them to clothing and skin keeps the pickers doing
-        // something honest until per-part customisation is designed properly.
-        tintTargets = {
-          clothing: character.materials.slice(0, 1),
-          skin: character.materials.slice(1, 2),
-          hair: [],
-        }
+        tintTargets = character.materials
         applyAppearance(useAvatarStore.getState())
 
         animations = new AnimationManager(character.mixer, character.clips)

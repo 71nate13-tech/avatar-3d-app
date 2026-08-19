@@ -38,14 +38,17 @@ Then Download with:
 
 Save as `character.fbx`.
 
-Y Bot and X Bot are deliberate choices, not placeholders. They are untextured
-mannequins with plain colour materials, so the colour pickers actually work on
-them — a material tint is the real colour, not a wash over a photograph. Every
-photoreal Mixamo character has its skin, hair, and clothing baked into one
-texture, which means a colour picker can only tint that image: choosing a deep
-skin tone would dim the whole character, eyes and clothing along with it, and
-choosing a fair one would wash it out. Their stylised look is also closer to
-Bitmoji than a photoreal human would be, and the files are far smaller.
+Y Bot and X Bot are recommended rather than required. They are untextured
+mannequins whose stylised look sits closer to Bitmoji than a photoreal human,
+and their files are far smaller.
+
+Any Mixamo character will work, because the loader strips textures and resets
+every material to plain white before the colour pickers touch it. That is what
+makes a chosen colour come out as that exact colour: tinting on top of baked-in
+artwork is only ever a wash over someone else's skin and clothing, so a deep
+tone would dim the whole character instead of actually changing its skin. The
+trade is that a photoreal character loses its painted detail and arrives as a
+blank mannequin. Being able to pick a colour and get it is worth more here.
 
 **2. The dances** — keep the *same character selected*, then for each animation
 in the Animations tab, Download with:
