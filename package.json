@@ -11,7 +11,10 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "electron:dev": "cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
-    "electron:build": "vite build && electron-builder"
+    "electron:build": "vite build && electron-builder",
+    "android:sync": "vite build && cap sync android",
+    "android:apk": "vite build && cap sync android && cd android && gradlew.bat assembleDebug",
+    "android:run": "vite build && cap sync android && cap run android"
   },
   "build": {
     "appId": "com.nate.avatar3d",
@@ -32,6 +35,9 @@
     }
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "three": "^0.169.0",

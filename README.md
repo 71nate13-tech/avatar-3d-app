@@ -42,7 +42,35 @@ npm run dev
 
 Open [http://localhost:5173](http://localhost:5173) in your browser.
 
-### Build
+Model files are not in the repo — see [public/models/README.md](public/models/README.md)
+for how to fetch them. The app falls back to a built-in primitive figure without
+them, so a fresh clone still runs.
+
+### Windows desktop
+
+```bash
+npm run electron:dev     # runs against the dev server, hot reloads
+npm run electron:build   # installable .exe in release/
+```
+
+### Android
+
+Needs a JDK (17+) and the Android SDK. No Android Studio required — Gradle does
+the build and the Capacitor CLI drives it.
+
+```bash
+npm run android:sync     # rebuild web assets and copy them into the native project
+npm run android:apk      # build a debug APK
+npm run android:run      # build, install, and launch on a connected device
+```
+
+The APK lands in `android/app/build/outputs/apk/debug/`.
+
+`cap sync` copies whatever is currently in `dist/`, so every one of these scripts
+runs `vite build` first. Running `cap sync` on its own ships the previous build
+to the phone, which looks exactly like a change that failed to take effect.
+
+### Web build
 
 ```bash
 npm run build
