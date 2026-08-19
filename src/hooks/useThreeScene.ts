@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import { createScene } from '../three/scene'
 import { createHumanoid } from '../three/avatar/humanoid'
 import { MarioCamera } from '../three/camera/MarioCamera'
+import { useAvatarStore, type AvatarAppearance } from '../stores/avatarStore'
 
 /**
  * Owns the Three.js lifecycle for one canvas: build the world, run the render
@@ -31,6 +32,17 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
     const camera = new MarioCamera(canvas, parent.clientWidth / parent.clientHeight)
     cameraRef.current = camera
 
+    // Subscribe to the store outside React: colours change on every drag of the
+    // picker, and pushing that through a re-render would rebuild the scene.
+    // Writing straight to the materials is picked up by the next frame.
+    const applyAppearance = (appearance: AvatarAppearance) => {
+      avatar.materials.skin.color.set(appearance.skinColor)
+      avatar.materials.hair.color.set(appearance.hairColor)
+      avatar.materials.clothing.color.set(appearance.clothingColor)
+    }
+    applyAppearance(useAvatarStore.getState())
+    const unsubscribeAppearance = useAvatarStore.subscribe(applyAppearance)
+
     const resize = () => {
       const { clientWidth: w, clientHeight: h } = parent
       if (w === 0 || h === 0) return
@@ -56,6 +68,7 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
     return () => {
       cancelAnimationFrame(frame)
       observer.disconnect()
+      unsubscribeAppearance()
       camera.dispose()
       avatar.dispose()
       disposeScene()
