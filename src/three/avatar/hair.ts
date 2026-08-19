@@ -72,8 +72,27 @@ interface StyleSpec {
   blob: number
   /** How many blobs cover the scalp. */
   density: number
-  /** Hanging strands: how many, how long, and how far they drift outward. */
-  strands?: { count: number; length: number; drift: number; spread: number; back: boolean }
+  strands?: {
+    count: number
+    length: number
+    /** How far a strand wanders sideways per step. */
+    drift: number
+    /** For a gathered tail, how tightly it bunches at the back. */
+    spread: number
+    /** Gather at the back of the skull instead of spreading around it. */
+    back: boolean
+    /**
+     * How far forward of the ears strands may start and hang, as a fraction of
+     * head depth. Real braids and locs are anchored behind the hairline, so
+     * this stays low; a loose curtain can come further forward to frame the
+     * face. It is also a hard clamp on drift, because a strand that wanders
+     * forward over a dozen steps ends up crossing the cheek.
+     */
+    frontReach: number
+    /** Vary thickness down the strand, so it reads as plaited rather than as a
+     *  smooth tube. */
+    plaited?: boolean
+  }
 }
 
 /**
@@ -88,10 +107,12 @@ const SPECS: Record<Exclude<HairStyle, 'none'>, StyleSpec> = {
   buzz: { shell: 1.02, blob: 0.115, density: 200 },
   coils: { shell: 1.1, blob: 0.19, density: 80 },
   afro: { shell: 1.28, blob: 0.3, density: 70 },
-  locs: { shell: 1.06, blob: 0.145, density: 130, strands: { count: 16, length: 14, drift: 0.055, spread: 0.9, back: false } },
-  braids: { shell: 1.05, blob: 0.14, density: 130, strands: { count: 10, length: 16, drift: 0.045, spread: 1.0, back: false } },
-  ponytail: { shell: 1.05, blob: 0.145, density: 140, strands: { count: 4, length: 15, drift: 0.06, spread: 0.3, back: true } },
-  long: { shell: 1.08, blob: 0.2, density: 80, strands: { count: 22, length: 13, drift: 0.03, spread: 1.0, back: false } },
+  locs: { shell: 1.06, blob: 0.145, density: 130, strands: { count: 16, length: 14, drift: 0.04, spread: 0.9, back: false, frontReach: 0.12 } },
+  // Braids sit strictly behind the ears and are thicker and fewer than locs,
+  // so each one reads as a distinct plait rather than as a fringe.
+  braids: { shell: 1.05, blob: 0.17, density: 130, strands: { count: 9, length: 15, drift: 0.03, spread: 1.0, back: false, frontReach: 0, plaited: true } },
+  ponytail: { shell: 1.05, blob: 0.145, density: 140, strands: { count: 4, length: 15, drift: 0.06, spread: 0.3, back: true, frontReach: 0 } },
+  long: { shell: 1.08, blob: 0.2, density: 80, strands: { count: 22, length: 13, drift: 0.025, spread: 1.0, back: false, frontReach: 0.3 } },
 }
 
 function buildStyle(anchor: HeadAnchor, style: Exclude<HairStyle, 'none'>): THREE.BufferGeometry {
@@ -132,29 +153,45 @@ function buildStyle(anchor: HeadAnchor, style: Exclude<HairStyle, 'none'>): THRE
 
   // Hanging strands, grown downward from around the hairline.
   if (spec.strands) {
-    const { count, length, drift, spread, back } = spec.strands
-    // Angles are (right, forward) around the head: 0 is the right ear, π/2 the
-    // face, and 3π/2 the back of the skull. A tail bunches at the back; other
-    // styles sweep the 1.7π of arc that excludes the face entirely, so no
-    // strand has to be discarded and the requested count is what gets built.
+    const { count, length, drift, spread, back, frontReach, plaited } = spec.strands
+    // Angles are (right, forward) around the head: 0 is the right ear, pi/2 the
+    // face, 3*pi/2 the back of the skull. A tail bunches at the back; every
+    // other style sweeps ear to ear round the back, widened by frontReach.
+    //
+    // The previous sweep started at 0.65*pi, only 0.15*pi off the face, so the
+    // first and last strands began on the cheeks and hung down across them.
+    // Deriving the arc ends from frontReach means a strand can never start
+    // further forward than the style allows.
     const BACK_ANGLE = Math.PI * 1.5
+    const reach = Math.asin(THREE.MathUtils.clamp(frontReach, 0, 0.95))
+    const startAngle = Math.PI - reach
+    const sweep = Math.PI + reach * 2
+
     for (let s = 0; s < count; s++) {
       const angle = back
         ? BACK_ANGLE + (random() - 0.5) * spread
-        : Math.PI * 0.65 + (s / Math.max(count - 1, 1)) * Math.PI * 1.7
+        : startAngle + (s / Math.max(count - 1, 1)) * sweep
       const startX = Math.cos(angle) * 0.92
       const startZ = Math.sin(angle) * 0.92
 
       let right = startX * r
       let up = r * (back ? 0.15 : -0.05)
       let forward = startZ * r
+      // Drift accumulates over a dozen steps, so without a ceiling a strand
+      // wanders forward and ends up laid across the jaw.
+      const forwardLimit = (frontReach + 0.05) * r
+
       for (let i = 0; i < length; i++) {
-        addBlob(toLocal(right, up, forward), spec.blob * r * (0.95 - i * 0.02))
+        // A plait is a stack of segments rather than a smooth tube, so its
+        // thickness pulses down the length instead of tapering evenly.
+        const taper = plaited ? 0.78 + 0.34 * Math.abs(Math.sin(i * 1.7)) : 0.95 - i * 0.02
+        addBlob(toLocal(right, up, forward), spec.blob * r * taper)
         up -= r * 0.16
         // Drift outward and wander a little, so strands do not read as a
         // single extruded slab.
         right += (right >= 0 ? 1 : -1) * r * drift * random()
         forward += (random() - 0.5) * r * drift
+        if (forward > forwardLimit) forward = forwardLimit
       }
     }
   }
