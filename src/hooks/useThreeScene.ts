@@ -40,15 +40,18 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
     cameraRef.current = camera
 
     // Materials to tint, rebound when the real character replaces the placeholder.
-    let tintTargets: {
-      skin: THREE.MeshStandardMaterial[]
-      hair: THREE.MeshStandardMaterial[]
-      clothing: THREE.MeshStandardMaterial[]
-    } = {
+    // The placeholder has one clothing material and no garment separation, so it
+    // follows the top colour and leaves the other two controls hidden.
+    type TintTargets = Record<'skin' | 'hair' | 'top' | 'bottom' | 'shoes', THREE.MeshStandardMaterial[]>
+    let tintTargets: TintTargets = {
       skin: [placeholder.materials.skin],
       hair: [placeholder.materials.hair],
-      clothing: [placeholder.materials.clothing],
+      top: [placeholder.materials.clothing],
+      bottom: [],
+      shoes: [],
     }
+    let setOutfit: ((outfit: AvatarAppearance['outfit']) => void) | null = null
+    let lastOutfit: AvatarAppearance['outfit'] | null = null
 
     // Subscribe to the store outside React: colours change on every drag of the
     // picker, and pushing that through a re-render would rebuild the scene.
@@ -56,7 +59,24 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
     const applyAppearance = (appearance: AvatarAppearance) => {
       tintTargets.skin.forEach((m) => m.color.set(appearance.skinColor))
       tintTargets.hair.forEach((m) => m.color.set(appearance.hairColor))
-      tintTargets.clothing.forEach((m) => m.color.set(appearance.clothingColor))
+      tintTargets.top.forEach((m) => m.color.set(appearance.topColor))
+      tintTargets.bottom.forEach((m) => m.color.set(appearance.bottomColor))
+      tintTargets.shoes.forEach((m) => m.color.set(appearance.shoesColor))
+
+      // Changing an outfit rewrites the geometry index, which is far heavier
+      // than setting a colour — so only do it when the outfit actually changed,
+      // not on every drag of a colour picker.
+      const outfit = appearance.outfit
+      if (
+        setOutfit &&
+        (!lastOutfit ||
+          lastOutfit.top !== outfit.top ||
+          lastOutfit.bottom !== outfit.bottom ||
+          lastOutfit.shoes !== outfit.shoes)
+      ) {
+        setOutfit(outfit)
+        lastOutfit = { ...outfit }
+      }
     }
     applyAppearance(useAvatarStore.getState())
     const unsubscribeAppearance = useAvatarStore.subscribe(applyAppearance)
@@ -78,11 +98,25 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
         placeholder.dispose()
         scene.add(character.group)
 
-        tintTargets = character.materials
+        const hasClothing = character.clothing.length > 0
+        tintTargets = {
+          skin: [character.materials.skin],
+          // Mixamo's mannequins have no separate hair mesh.
+          hair: [],
+          top: [character.materials.top],
+          bottom: [character.materials.bottom],
+          shoes: [character.materials.shoes],
+        }
+        setOutfit = hasClothing ? character.setOutfit : null
+        lastOutfit = null
+
         useAvatarStore.getState().setTintable({
-          skin: character.materials.skin.length > 0,
-          hair: character.materials.hair.length > 0,
-          clothing: character.materials.clothing.length > 0,
+          skin: true,
+          hair: false,
+          top: hasClothing,
+          bottom: hasClothing,
+          shoes: hasClothing,
+          outfit: hasClothing,
         })
         applyAppearance(useAvatarStore.getState())
 

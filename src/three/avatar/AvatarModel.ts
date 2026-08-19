@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
+import { analyseForClothing, applyOutfit, type ClothingAnalysis, type Outfit } from './clothing'
 
 /**
  * Loads a rigged Mixamo character and its dance clips.
@@ -12,12 +13,20 @@ import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
 /** Mixamo exports in centimetres; the rest of the scene is in metres. */
 const MIXAMO_SCALE = 0.01
 
-/** Materials grouped by which control tints them. */
+/**
+ * One material per garment, shared by every mesh in the character.
+ *
+ * This replaced an earlier attempt to guess a material's role from its name.
+ * That guess was wrong on the very first real character — the body loads as
+ * `Beta_HighLimbsGeoSG3`, which reads as nothing in particular — and it failed
+ * silently, tinting the wrong parts rather than erroring. Which bone owns a
+ * vertex is a fact, so the naming never has to be interpreted.
+ */
 export interface CharacterMaterials {
-  skin: THREE.MeshStandardMaterial[]
-  hair: THREE.MeshStandardMaterial[]
-  clothing: THREE.MeshStandardMaterial[]
-  all: THREE.MeshStandardMaterial[]
+  skin: THREE.MeshStandardMaterial
+  top: THREE.MeshStandardMaterial
+  bottom: THREE.MeshStandardMaterial
+  shoes: THREE.MeshStandardMaterial
 }
 
 export interface LoadedCharacter {
@@ -26,73 +35,10 @@ export interface LoadedCharacter {
   /** Clips keyed by the name we gave them, not the name inside the file. */
   clips: Map<string, THREE.AnimationClip>
   materials: CharacterMaterials
+  /** One per skinned mesh, so garments cover the joints as well as the body. */
+  clothing: ClothingAnalysis[]
+  setOutfit: (outfit: Outfit) => void
   dispose: () => void
-}
-
-// Rough guesses at what a material covers, from its name. Mixamo has no
-// convention worth relying on, so this is a best effort that degrades to
-// "treat it as clothing" rather than failing.
-const HAIR_PATTERN = /hair|beard|brow|lash/i
-// `joint` is here rather than under skin because on Mixamo's own mannequins the
-// joints are accent pieces sitting on top of the body shell, so they behave far
-// more like clothing than like skin.
-const CLOTHING_PATTERN = /shirt|pant|cloth|dress|jacket|shoe|top|bottom|outfit|suit|vest|sock|boot|joint/i
-// `limb` and `surface` catch Mixamo's mannequins, whose body shell loads as
-// `Beta_HighLimbsGeoSG3`. That shell is most of what you see, so it belongs to
-// the skin control — which is what makes picking a skin tone change the whole
-// figure rather than a few accents.
-const SKIN_PATTERN = /skin|body|head|face|arm|leg|hand|foot|surface|limb|torso/i
-
-function bucketMaterials(
-  all: THREE.MeshStandardMaterial[],
-  /** Vertices drawn with each material, used to tell a body from its trim. */
-  sizes: Map<THREE.Material, number>,
-): CharacterMaterials {
-  const buckets: CharacterMaterials = { skin: [], hair: [], clothing: [], all }
-  const unmatched: THREE.MeshStandardMaterial[] = []
-
-  for (const material of all) {
-    const name = material.name ?? ''
-    if (HAIR_PATTERN.test(name)) buckets.hair.push(material)
-    else if (CLOTHING_PATTERN.test(name)) buckets.clothing.push(material)
-    else if (SKIN_PATTERN.test(name)) buckets.skin.push(material)
-    else unmatched.push(material)
-  }
-
-  // Names that matched nothing are sorted by how much of the model they cover.
-  // The biggest is the body and belongs to skin; the rest read as trim. Going
-  // by size rather than by load order matters, because the arbitrary choice is
-  // wrong roughly half the time and fails silently: the figure still recolours,
-  // just from the control nobody expects. That is exactly what happened with
-  // Mixamo's mannequin, whose body shell is named `Beta_HighLimbsGeoSG3` and
-  // matched none of the patterns above.
-  if (unmatched.length > 0) {
-    unmatched.sort((a, b) => (sizes.get(b) ?? 0) - (sizes.get(a) ?? 0))
-    const [largest, ...rest] = unmatched
-    if (buckets.skin.length === 0) buckets.skin.push(largest)
-    else buckets.clothing.push(largest)
-    buckets.clothing.push(...rest)
-  }
-
-  // A control wired to an empty bucket looks broken — you click it and nothing
-  // moves — so make sure skin and clothing both have one where possible.
-  if (all.length >= 2) {
-    if (buckets.skin.length === 0 && buckets.clothing.length > 1) {
-      buckets.skin.push(buckets.clothing.pop()!)
-    } else if (buckets.clothing.length === 0 && buckets.skin.length > 1) {
-      buckets.clothing.push(buckets.skin.pop()!)
-    }
-  }
-
-  console.info(
-    '[avatar] materials:',
-    all.map((m) => m.name || '(unnamed)'),
-    '→ skin:', buckets.skin.length,
-    'hair:', buckets.hair.length,
-    'clothing:', buckets.clothing.length,
-  )
-
-  return buckets
 }
 
 const loader = new FBXLoader()
@@ -101,6 +47,15 @@ function load(url: string): Promise<THREE.Group> {
   return new Promise((resolve, reject) => {
     loader.load(url, resolve, undefined, () => reject(new Error(`Could not load ${url}`)))
   })
+}
+
+function createMaterial(name: string): THREE.MeshStandardMaterial {
+  // White with no texture, so a picked colour comes out exactly as picked.
+  // Tinting over baked-in artwork is only ever a wash across someone else's
+  // skin and clothing: a deep tone would dim the whole character rather than
+  // change its skin. A photoreal character loses its painted detail this way,
+  // which is the price of a colour control that delivers the colour.
+  return new THREE.MeshStandardMaterial({ name, color: 0xffffff, roughness: 0.7, metalness: 0 })
 }
 
 /**
@@ -120,43 +75,35 @@ export async function loadCharacter(
   const group = await load(characterUrl)
   group.scale.setScalar(MIXAMO_SCALE)
 
-  const collected: THREE.MeshStandardMaterial[] = []
-  const sizes = new Map<THREE.Material, number>()
+  const materials: CharacterMaterials = {
+    skin: createMaterial('skin'),
+    top: createMaterial('top'),
+    bottom: createMaterial('bottom'),
+    shoes: createMaterial('shoes'),
+  }
+  // Order matches MATERIAL_SLOT in clothing.ts — the geometry groups index
+  // into this array, so the two must stay in step.
+  const materialList = [materials.skin, materials.top, materials.bottom, materials.shoes]
+
+  const clothing: ClothingAnalysis[] = []
   group.traverse((child) => {
     if (!(child instanceof THREE.Mesh)) return
     child.castShadow = true
     child.receiveShadow = true
-    const vertexCount = child.geometry.getAttribute('position')?.count ?? 0
-    // FBX arrives with Phong materials; convert so it lights the same way as
-    // the rest of the scene, which is built on the standard PBR model.
-    const source = Array.isArray(child.material) ? child.material : [child.material]
-    child.material = source.map((old: THREE.Material) => {
-      // Start white with no texture, so a picked colour comes out exactly as
-      // picked. Tinting on top of baked-in artwork is only ever a wash over
-      // someone else's skin and clothing — a deep tone would dim the whole
-      // character rather than actually change its skin. Losing the texture
-      // costs the character's painted detail; being able to choose a colour
-      // and get that colour is worth more here.
-      // No `skinning` flag: three handles that from the mesh type since r151.
-      const converted = new THREE.MeshStandardMaterial({
-        name: old.name,
-        color: 0xffffff,
-        roughness: 0.7,
-        metalness: 0,
-      })
-      collected.push(converted)
-      // Split evenly when one mesh carries several materials — good enough to
-      // rank a body against its trim, which is all this is used for.
-      sizes.set(converted, (sizes.get(converted) ?? 0) + vertexCount / source.length)
-      old.dispose()
-      return converted
-    })
-    if (Array.isArray(child.material) && child.material.length === 1) {
-      child.material = child.material[0]
+
+    const previous = Array.isArray(child.material) ? child.material : [child.material]
+    previous.forEach((m) => m.dispose())
+    child.material = materialList
+
+    if (child instanceof THREE.SkinnedMesh) {
+      const analysis = analyseForClothing(child)
+      if (analysis) clothing.push(analysis)
     }
   })
 
-  const materials = bucketMaterials(collected, sizes)
+  if (clothing.length === 0) {
+    console.warn('[avatar] no skinned mesh found — clothing will not be available')
+  }
 
   const mixer = new THREE.AnimationMixer(group)
   const clips = new Map<string, THREE.AnimationClip>()
@@ -194,13 +141,15 @@ export async function loadCharacter(
     mixer,
     clips,
     materials,
+    clothing,
+    setOutfit: (outfit) => clothing.forEach((analysis) => applyOutfit(analysis, outfit)),
     dispose: () => {
       mixer.stopAllAction()
       mixer.uncacheRoot(group)
       group.traverse((child) => {
         if (child instanceof THREE.Mesh) child.geometry.dispose()
       })
-      materials.all.forEach((m) => m.dispose())
+      materialList.forEach((m) => m.dispose())
     },
   }
 }
