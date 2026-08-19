@@ -46,6 +46,22 @@ export const HAIR_COLORS = [
   '#e2574c',
 ]
 
+/** Common eye colours, plus a few that are not, since this is an avatar. */
+export const EYE_COLORS = [
+  '#4a2c17',
+  '#6b4423',
+  '#8c6239',
+  '#3f5c3a',
+  '#2e6b4f',
+  '#4a7ba7',
+  '#5f8fb5',
+  '#7a8a99',
+  '#2b2b30',
+  '#8e4585',
+  '#b5432a',
+  '#c9a227',
+]
+
 export const CLOTHING_COLORS = [
   '#3b6ea5',
   '#2f4858',

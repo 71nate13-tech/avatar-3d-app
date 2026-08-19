@@ -1,6 +1,9 @@
 import * as THREE from 'three'
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
 import { analyseForClothing, applyOutfit, type ClothingAnalysis, type Outfit } from './clothing'
+import { measureHead } from './headAnchor'
+import { createFace, type FaceRig } from './face'
+import { createHair, type HairRig } from './hair'
 
 /**
  * Loads a rigged Mixamo character and its dance clips.
@@ -38,6 +41,9 @@ export interface LoadedCharacter {
   /** One per skinned mesh, so garments cover the joints as well as the body. */
   clothing: ClothingAnalysis[]
   setOutfit: (outfit: Outfit) => void
+  /** Null when the character has no recognisable head bone to attach to. */
+  face: FaceRig | null
+  hair: HairRig | null
   dispose: () => void
 }
 
@@ -105,6 +111,25 @@ export async function loadCharacter(
     console.warn('[avatar] no skinned mesh found — clothing will not be available')
   }
 
+  // Measure and attach before any clip plays: measureHead reads the mesh in its
+  // bind pose, where plain vertex positions still line up with the skeleton.
+  // Once an animation is running they no longer do, and the face lands wherever
+  // the head happened to be on frame one.
+  let face: FaceRig | null = null
+  let hair: HairRig | null = null
+  const bodyMesh = clothing[0]?.mesh
+  const anchor = bodyMesh ? measureHead(bodyMesh) : null
+  if (anchor) {
+    face = createFace(anchor)
+    hair = createHair(anchor)
+    // Parenting to the bone rather than the group is what makes these ride the
+    // animation: the bone is already being posed every frame.
+    anchor.bone.add(face.group)
+    anchor.bone.add(hair.group)
+  } else {
+    console.warn('[avatar] no head bone found — face and hair unavailable')
+  }
+
   const mixer = new THREE.AnimationMixer(group)
   const clips = new Map<string, THREE.AnimationClip>()
 
@@ -143,9 +168,13 @@ export async function loadCharacter(
     materials,
     clothing,
     setOutfit: (outfit) => clothing.forEach((analysis) => applyOutfit(analysis, outfit)),
+    face,
+    hair,
     dispose: () => {
       mixer.stopAllAction()
       mixer.uncacheRoot(group)
+      face?.dispose()
+      hair?.dispose()
       group.traverse((child) => {
         if (child instanceof THREE.Mesh) child.geometry.dispose()
       })

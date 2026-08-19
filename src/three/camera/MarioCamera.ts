@@ -33,15 +33,18 @@ const DEFAULTS: Required<MarioCameraOptions> = {
 
 export class MarioCamera {
   readonly camera: THREE.PerspectiveCamera
-  readonly target = new THREE.Vector3(0, 0.95, 0)
+  // Chest height rather than waist: it keeps the head in frame at close range,
+  // which is where the face and hair are actually judged.
+  readonly target = new THREE.Vector3(0, 1.05, 0)
 
   private readonly dom: HTMLElement
   private readonly opts: Required<MarioCameraOptions>
 
   // Where the user has asked the camera to be.
   private theta = Math.PI * 0.25
-  private phi = Math.PI * 0.42
-  private radius = 4.5
+  private phi = Math.PI * 0.46
+  // Close enough that the face reads without cropping the feet mid-dance.
+  private radius = 3.1
 
   // Where the camera actually is, chasing the values above.
   private smoothTheta = this.theta

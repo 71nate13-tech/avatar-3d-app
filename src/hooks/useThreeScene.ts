@@ -52,6 +52,9 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
     }
     let setOutfit: ((outfit: AvatarAppearance['outfit']) => void) | null = null
     let lastOutfit: AvatarAppearance['outfit'] | null = null
+    let face: import('../three/avatar/face').FaceRig | null = null
+    let hair: import('../three/avatar/hair').HairRig | null = null
+    let lastHairStyle: string | null = null
 
     // Subscribe to the store outside React: colours change on every drag of the
     // picker, and pushing that through a re-render would rebuild the scene.
@@ -62,6 +65,17 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
       tintTargets.top.forEach((m) => m.color.set(appearance.topColor))
       tintTargets.bottom.forEach((m) => m.color.set(appearance.bottomColor))
       tintTargets.shoes.forEach((m) => m.color.set(appearance.shoesColor))
+
+      face?.setExpression(appearance.expression)
+      face?.setEyeColor(appearance.eyeColor)
+      hair?.setColor(appearance.hairColor)
+
+      // Selecting a style builds its geometry the first time, so only touch it
+      // on an actual change rather than on every colour drag.
+      if (hair && appearance.hairStyle !== lastHairStyle) {
+        hair.setStyle(appearance.hairStyle)
+        lastHairStyle = appearance.hairStyle
+      }
 
       // Changing an outfit rewrites the geometry index, which is far heavier
       // than setting a colour — so only do it when the outfit actually changed,
@@ -99,9 +113,11 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
         scene.add(character.group)
 
         const hasClothing = character.clothing.length > 0
+        const hasHead = character.face !== null
         tintTargets = {
           skin: [character.materials.skin],
-          // Mixamo's mannequins have no separate hair mesh.
+          // Hair is its own generated mesh with its own material, so it is
+          // coloured through the rig rather than through this list.
           hair: [],
           top: [character.materials.top],
           bottom: [character.materials.bottom],
@@ -109,14 +125,18 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
         }
         setOutfit = hasClothing ? character.setOutfit : null
         lastOutfit = null
+        face = character.face
+        hair = character.hair
+        lastHairStyle = null
 
         useAvatarStore.getState().setTintable({
           skin: true,
-          hair: false,
+          hair: hasHead,
           top: hasClothing,
           bottom: hasClothing,
           shoes: hasClothing,
           outfit: hasClothing,
+          head: hasHead,
         })
         applyAppearance(useAvatarStore.getState())
 
