@@ -33,8 +33,14 @@ export interface LoadedCharacter {
 // convention worth relying on, so this is a best effort that degrades to
 // "treat it as clothing" rather than failing.
 const HAIR_PATTERN = /hair|beard|brow|lash/i
-const CLOTHING_PATTERN = /shirt|pant|cloth|dress|jacket|shoe|top|bottom|outfit|suit|vest|sock|boot/i
-const SKIN_PATTERN = /skin|body|head|face|arm|leg|hand|foot|joint/i
+// `joint` is here rather than under skin because on Mixamo's own mannequins the
+// joints are accent pieces sitting on top of the body shell, so they behave far
+// more like clothing than like skin.
+const CLOTHING_PATTERN = /shirt|pant|cloth|dress|jacket|shoe|top|bottom|outfit|suit|vest|sock|boot|joint/i
+// `surface` catches Mixamo's mannequins, whose body shell is `Beta_Surface`.
+// That shell is most of what you see, so it belongs to the skin control — which
+// is what makes picking a skin tone change the whole figure.
+const SKIN_PATTERN = /skin|body|head|face|arm|leg|hand|foot|surface/i
 
 function bucketMaterials(all: THREE.MeshStandardMaterial[]): CharacterMaterials {
   const buckets: CharacterMaterials = { skin: [], hair: [], clothing: [], all }
@@ -85,6 +91,11 @@ function load(url: string): Promise<THREE.Group> {
 export async function loadCharacter(
   characterUrl: string,
   danceUrls: Record<string, string>,
+  /** Name to give the clip carried inside the character file, if it has one.
+   *  Downloading the character With Skin bundles whichever animation was
+   *  selected at the time, so that clip is already here and re-fetching the
+   *  same file as a dance would parse several megabytes twice. */
+  embeddedClipName?: string,
 ): Promise<LoadedCharacter> {
   const group = await load(characterUrl)
   group.scale.setScalar(MIXAMO_SCALE)
@@ -125,7 +136,12 @@ export async function loadCharacter(
   const mixer = new THREE.AnimationMixer(group)
   const clips = new Map<string, THREE.AnimationClip>()
 
-  // The character export can carry a clip of its own (usually the T-pose).
+  const embedded = embeddedClipName ? group.animations[0] : undefined
+  if (embedded && embeddedClipName) {
+    embedded.name = embeddedClipName
+    clips.set(embeddedClipName, embedded)
+  }
+
   // Load the dances in parallel — they are independent requests.
   const results = await Promise.allSettled(
     Object.entries(danceUrls).map(async ([name, url]) => {

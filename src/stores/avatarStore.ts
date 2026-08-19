@@ -16,15 +16,30 @@ export const DEFAULT_APPEARANCE: AvatarAppearance = {
   clothingColor: '#3b6ea5',
 }
 
+/** Which parts the loaded model actually exposes. A control wired to nothing
+ *  looks broken — you click it and the avatar does not change — so the UI hides
+ *  those rather than offering a dead one. Mixamo's mannequins have no separate
+ *  hair mesh, for instance. */
+export interface TintableParts {
+  skin: boolean
+  hair: boolean
+  clothing: boolean
+}
+
 interface AvatarStore extends AvatarAppearance {
+  tintable: TintableParts
   setSkinColor: (color: string) => void
   setHairColor: (color: string) => void
   setClothingColor: (color: string) => void
+  setTintable: (parts: TintableParts) => void
   reset: () => void
 }
 
 export const useAvatarStore = create<AvatarStore>((set) => ({
   ...DEFAULT_APPEARANCE,
+  // The placeholder figure has all three, and it is what shows first.
+  tintable: { skin: true, hair: true, clothing: true },
+  setTintable: (tintable) => set({ tintable }),
   setSkinColor: (skinColor) => set({ skinColor }),
   setHairColor: (hairColor) => set({ hairColor }),
   setClothingColor: (clothingColor) => set({ clothingColor }),

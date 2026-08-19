@@ -11,14 +11,26 @@ export default function ControlPanel() {
   const setHairColor = useAvatarStore((s) => s.setHairColor)
   const setClothingColor = useAvatarStore((s) => s.setClothingColor)
   const reset = useAvatarStore((s) => s.reset)
+  const tintable = useAvatarStore((s) => s.tintable)
 
   return (
     <aside className="flex max-h-[45vh] shrink-0 flex-col gap-5 overflow-y-auto border-t border-white/10 bg-[#17171f] p-4 md:max-h-none md:w-72 md:border-l md:border-t-0">
       <DanceController />
 
-      <ColorSwatches label="Skin" colors={SKIN_TONES} value={skinColor} onChange={setSkinColor} />
-      <ColorSwatches label="Hair" colors={HAIR_COLORS} value={hairColor} onChange={setHairColor} />
-      <ColorSwatches label="Clothing" colors={CLOTHING_COLORS} value={clothingColor} onChange={setClothingColor} />
+      {tintable.skin && (
+        <ColorSwatches label="Skin" colors={SKIN_TONES} value={skinColor} onChange={setSkinColor} />
+      )}
+      {tintable.hair && (
+        <ColorSwatches label="Hair" colors={HAIR_COLORS} value={hairColor} onChange={setHairColor} />
+      )}
+      {tintable.clothing && (
+        <ColorSwatches
+          label="Clothing"
+          colors={CLOTHING_COLORS}
+          value={clothingColor}
+          onChange={setClothingColor}
+        />
+      )}
 
       <button
         type="button"

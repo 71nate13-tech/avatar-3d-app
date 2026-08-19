@@ -10,16 +10,23 @@ export interface Dance {
   label: string
 }
 
+export const CHARACTER_URL = '/models/character.fbx'
+
+/**
+ * The character file was exported With Skin, so it already carries the clip
+ * that was selected when it was downloaded. Naming it here uses that clip
+ * instead of fetching and parsing the same few megabytes a second time.
+ */
+export const EMBEDDED_CLIP_ID = 'idle'
+
 export const DANCES: Dance[] = [
-  { id: 'idle', label: 'Idle' },
+  { id: EMBEDDED_CLIP_ID, label: 'Idle' },
   { id: 'hiphop', label: 'Hip Hop' },
   { id: 'salsa', label: 'Salsa' },
   { id: 'robot', label: 'Robot' },
   { id: 'shuffle', label: 'Shuffle' },
 ]
 
-export const CHARACTER_URL = '/models/character.fbx'
-
 export const DANCE_URLS: Record<string, string> = Object.fromEntries(
-  DANCES.map((d) => [d.id, `/models/dances/${d.id}.fbx`]),
+  DANCES.filter((d) => d.id !== EMBEDDED_CLIP_ID).map((d) => [d.id, `/models/dances/${d.id}.fbx`]),
 )

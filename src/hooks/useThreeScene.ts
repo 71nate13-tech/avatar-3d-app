@@ -7,7 +7,7 @@ import { loadCharacter } from '../three/avatar/AvatarModel'
 import { AnimationManager } from '../three/avatar/AnimationManager'
 import { useAvatarStore, type AvatarAppearance } from '../stores/avatarStore'
 import { useDanceStore } from '../stores/danceStore'
-import { CHARACTER_URL, DANCE_URLS } from '../data/dances'
+import { CHARACTER_URL, DANCE_URLS, EMBEDDED_CLIP_ID } from '../data/dances'
 
 /**
  * Owns the Three.js lifecycle for one canvas: build the world, load the avatar,
@@ -66,7 +66,7 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
     let disposeCharacter: (() => void) | null = null
     let cancelled = false
 
-    loadCharacter(CHARACTER_URL, DANCE_URLS)
+    loadCharacter(CHARACTER_URL, DANCE_URLS, EMBEDDED_CLIP_ID)
       .then((character) => {
         // The effect can be torn down while the download is still in flight.
         if (cancelled) {
@@ -79,6 +79,11 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
         scene.add(character.group)
 
         tintTargets = character.materials
+        useAvatarStore.getState().setTintable({
+          skin: character.materials.skin.length > 0,
+          hair: character.materials.hair.length > 0,
+          clothing: character.materials.clothing.length > 0,
+        })
         applyAppearance(useAvatarStore.getState())
 
         animations = new AnimationManager(character.mixer, character.clips)
