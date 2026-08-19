@@ -16,6 +16,10 @@ export interface AvatarAppearance {
   outfit: Outfit
   hairStyle: HairStyle
   expression: ExpressionName
+  /** 1 is the modelled height; the range either side is roughly ±12%. */
+  height: number
+  /** -0.3 slighter, 0 as modelled, +0.6 heavier. */
+  build: number
 }
 
 /** Must stay in sync with the material defaults in `three/avatar/humanoid.ts`,
@@ -30,6 +34,8 @@ export const DEFAULT_APPEARANCE: AvatarAppearance = {
   outfit: { top: 'tshirt', bottom: 'trousers', shoes: true },
   hairStyle: 'coils',
   expression: 'happy',
+  height: 1,
+  build: 0,
 }
 
 /** Which parts the loaded model actually exposes. A control wired to nothing
@@ -46,6 +52,8 @@ export interface TintableParts {
   outfit: boolean
   /** Face and hair need a head bone to hang from; the placeholder has none. */
   head: boolean
+  /** Build needs a skinned mesh to reshape; height works on anything. */
+  body: boolean
 }
 
 interface AvatarStore extends AvatarAppearance {
@@ -61,6 +69,8 @@ interface AvatarStore extends AvatarAppearance {
   setShoes: (on: boolean) => void
   setHairStyle: (style: HairStyle) => void
   setExpression: (expression: ExpressionName) => void
+  setHeight: (height: number) => void
+  setBuild: (build: number) => void
   setTintable: (parts: TintableParts) => void
   reset: () => void
 }
@@ -88,6 +98,7 @@ export const useAvatarStore = create<AvatarStore>()(
         shoes: false,
         outfit: false,
         head: false,
+        body: false,
       },
       setTintable: (tintable) => set({ tintable }),
       setSkinColor: (skinColor) => set({ skinColor }),
@@ -95,6 +106,8 @@ export const useAvatarStore = create<AvatarStore>()(
       setEyeColor: (eyeColor) => set({ eyeColor }),
       setHairStyle: (hairStyle) => set({ hairStyle }),
       setExpression: (expression) => set({ expression }),
+      setHeight: (height) => set({ height }),
+      setBuild: (build) => set({ build }),
       setTopColor: (topColor) => set({ topColor }),
       setBottomColor: (bottomColor) => set({ bottomColor }),
       setShoesColor: (shoesColor) => set({ shoesColor }),
@@ -118,6 +131,8 @@ export const useAvatarStore = create<AvatarStore>()(
         outfit: state.outfit,
         hairStyle: state.hairStyle,
         expression: state.expression,
+        height: state.height,
+        build: state.build,
       }),
     },
   ),

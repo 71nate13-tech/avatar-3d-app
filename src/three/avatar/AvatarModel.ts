@@ -4,6 +4,7 @@ import { analyseForClothing, applyOutfit, type ClothingAnalysis, type Outfit } f
 import { measureHead } from './headAnchor'
 import { createFace, type FaceRig } from './face'
 import { createHair, type HairRig } from './hair'
+import { analyseBody, applyBuild, type BodyAnalysis } from './bodyShape'
 
 /**
  * Loads a rigged Mixamo character and its dance clips.
@@ -44,6 +45,11 @@ export interface LoadedCharacter {
   /** Null when the character has no recognisable head bone to attach to. */
   face: FaceRig | null
   hair: HairRig | null
+  /** Reshapes the mesh; -0.3 slighter, 0 as modelled, +0.6 heavier. */
+  setBuild: (build: number) => void
+  /** Uniform scale on top of the export scale, so 1 is the modelled height. */
+  setHeight: (height: number) => void
+  hasBodyShape: boolean
   dispose: () => void
 }
 
@@ -141,6 +147,15 @@ export async function loadCharacter(
   let face: FaceRig | null = null
   let hair: HairRig | null = null
   const bodyMesh = clothing[0]?.mesh
+
+  // Build is analysed from the same untouched bind pose, and the head is
+  // excluded from it, so the face and hair measurements below stay valid
+  // whatever build is chosen afterwards.
+  const bodies: BodyAnalysis[] = []
+  for (const analysis of clothing) {
+    const body = analyseBody(analysis.mesh)
+    if (body) bodies.push(body)
+  }
   const anchor = bodyMesh ? measureHead(bodyMesh) : null
   if (anchor) {
     face = createFace(anchor)
@@ -195,6 +210,11 @@ export async function loadCharacter(
     setOutfit: (outfit) => clothing.forEach((analysis) => applyOutfit(analysis, outfit)),
     face,
     hair,
+    setBuild: (build) => bodies.forEach((body) => applyBuild(body, build)),
+    // Multiplies the export scale rather than replacing it, so the centimetre
+    // conversion is not silently undone.
+    setHeight: (height) => group.scale.setScalar(MIXAMO_SCALE * height),
+    hasBodyShape: bodies.length > 0,
     dispose: () => {
       mixer.stopAllAction()
       mixer.uncacheRoot(group)

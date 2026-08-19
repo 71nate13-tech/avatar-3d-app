@@ -2,6 +2,7 @@ import { useAvatarStore } from '../stores/avatarStore'
 import { SKIN_TONES, HAIR_COLORS, CLOTHING_COLORS, EYE_COLORS } from '../data/palettes'
 import ColorSwatches from './customization/ColorSwatches'
 import StylePicker from './customization/StylePicker'
+import Slider from './customization/Slider'
 import DanceController from './dance/DanceController'
 import type { TopStyle, BottomStyle } from '../three/avatar/clothing'
 import { HAIR_STYLES } from '../three/avatar/hair'
@@ -36,6 +37,31 @@ export default function ControlPanel() {
   return (
     <aside className="flex max-h-[45vh] shrink-0 flex-col gap-5 overflow-y-auto border-t border-white/10 bg-[#17171f] p-4 md:max-h-none md:w-72 md:border-l md:border-t-0">
       <DanceController />
+
+      {tintable.body && (
+        <>
+          <Slider
+            label="Height"
+            readout={
+              s.height > 1.02 ? 'taller' : s.height < 0.98 ? 'shorter' : 'as modelled'
+            }
+            min={0.88}
+            max={1.12}
+            step={0.005}
+            value={s.height}
+            onChange={s.setHeight}
+          />
+          <Slider
+            label="Build"
+            readout={s.build > 0.05 ? 'fuller' : s.build < -0.05 ? 'slighter' : 'as modelled'}
+            min={-0.3}
+            max={0.6}
+            step={0.02}
+            value={s.build}
+            onChange={s.setBuild}
+          />
+        </>
+      )}
 
       {tintable.head && (
         <>

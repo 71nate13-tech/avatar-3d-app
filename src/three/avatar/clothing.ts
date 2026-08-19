@@ -45,7 +45,7 @@ const PART_BY_BONE: Array<[RegExp, BodyPart]> = [
   [/neck|spine|chest|torso/i, 'torso'],
 ]
 
-function partForBone(name: string): BodyPart {
+export function partForBone(name: string): BodyPart {
   for (const [pattern, part] of PART_BY_BONE) {
     if (pattern.test(name)) return part
   }

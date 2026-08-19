@@ -55,6 +55,10 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
     let face: import('../three/avatar/face').FaceRig | null = null
     let hair: import('../three/avatar/hair').HairRig | null = null
     let lastHairStyle: string | null = null
+    let setBuild: ((build: number) => void) | null = null
+    let setHeight: ((height: number) => void) | null = null
+    let lastBuild: number | null = null
+    let lastHeight: number | null = null
 
     // Subscribe to the store outside React: colours change on every drag of the
     // picker, and pushing that through a re-render would rebuild the scene.
@@ -75,6 +79,17 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
       if (hair && appearance.hairStyle !== lastHairStyle) {
         hair.setStyle(appearance.hairStyle)
         lastHairStyle = appearance.hairStyle
+      }
+
+      // Build walks every vertex and recomputes normals, so it is gated the
+      // same way. Dragging the build slider should not also redo the hair.
+      if (setBuild && appearance.build !== lastBuild) {
+        setBuild(appearance.build)
+        lastBuild = appearance.build
+      }
+      if (setHeight && appearance.height !== lastHeight) {
+        setHeight(appearance.height)
+        lastHeight = appearance.height
       }
 
       // Changing an outfit rewrites the geometry index, which is far heavier
@@ -128,6 +143,10 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
         face = character.face
         hair = character.hair
         lastHairStyle = null
+        setBuild = character.hasBodyShape ? character.setBuild : null
+        setHeight = character.setHeight
+        lastBuild = null
+        lastHeight = null
 
         useAvatarStore.getState().setTintable({
           skin: true,
@@ -137,6 +156,7 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
           shoes: hasClothing,
           outfit: hasClothing,
           head: hasHead,
+          body: character.hasBodyShape,
         })
         applyAppearance(useAvatarStore.getState())
 
