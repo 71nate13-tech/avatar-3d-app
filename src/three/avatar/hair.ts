@@ -45,8 +45,52 @@ export interface HairRig {
   group: THREE.Group
   setStyle: (style: HairStyle) => void
   setColor: (color: string) => void
+  /** Advances the swing of hanging strands. Call once per frame. */
+  update: (delta: number) => void
   dispose: () => void
 }
+
+/** One hanging strand: where it is rooted, which way it hangs, and its blobs
+ *  expressed relative to that root so the whole thing can pivot. */
+interface StrandBuild {
+  root: THREE.Vector3
+  rest: THREE.Vector3
+  geometry: THREE.BufferGeometry
+}
+
+interface StyleBuild {
+  cap: THREE.BufferGeometry
+  strands: StrandBuild[]
+}
+
+/**
+ * A strand's swing, as a single pendulum.
+ *
+ * Simulating hair properly means many linked segments and collision against the
+ * body, which is a large job and a poor fit for a phone. This instead lets each
+ * strand pivot as one rigid piece about its root, pulled by three things: back
+ * toward the way it was modelled, downward under gravity, and against whichever
+ * way the head just accelerated. The last one is what actually reads as hair,
+ * because hair lags behind the head rather than leading it.
+ *
+ * Everything is computed in the head bone's own space, so the rigid part of the
+ * motion still comes free from the skeleton and only the deviation is
+ * simulated.
+ */
+interface StrandState {
+  pivot: THREE.Object3D
+  rest: THREE.Vector3
+  direction: THREE.Vector3
+  spin: THREE.Vector3
+}
+
+const GRAVITY_PULL = 26
+const REST_PULL = 34
+const DRAG = 7
+const INERTIA = 0.02
+/** Radians a strand may deviate from rest. Without it a hard head movement
+ *  flings hair through the shoulders and back out again. */
+const MAX_SWING = 0.85
 
 /** Seeded so a given style looks identical on every load. Randomness that
  *  changes between runs would make the avatar feel unstable. */
@@ -122,7 +166,7 @@ const SPECS: Record<Exclude<HairStyle, 'none'>, StyleSpec> = {
   long: { shell: 1.1, blob: 0.2, density: 90, strands: { count: 22, length: 13, drift: 0.025, spread: 1.0, back: false, frontReach: 0.3 } },
 }
 
-function buildStyle(anchor: HeadAnchor, style: Exclude<HairStyle, 'none'>): THREE.BufferGeometry {
+function buildStyle(anchor: HeadAnchor, style: Exclude<HairStyle, 'none'>): StyleBuild {
   const spec = SPECS[style]
   const random = makeRandom(style.length * 9871 + 12345)
   const parts: THREE.BufferGeometry[] = []
@@ -138,12 +182,16 @@ function buildStyle(anchor: HeadAnchor, style: Exclude<HairStyle, 'none'>): THRE
       .addScaledVector(anchor.up, up * anchor.halfHeight)
       .addScaledVector(anchor.forward, forward * anchor.halfDepth)
 
-  const addBlob = (position: THREE.Vector3, size: number) => {
+  const blob = (position: THREE.Vector3, size: number) => {
     // Low segment counts: these are lumps under a solid colour, and at this
     // scale extra detail is invisible but multiplies across hundreds of blobs.
     const geometry = new THREE.SphereGeometry(size, 7, 5)
     geometry.applyMatrix4(new THREE.Matrix4().makeTranslation(position.x, position.y, position.z))
-    parts.push(geometry)
+    return geometry
+  }
+
+  const addBlob = (position: THREE.Vector3, size: number) => {
+    parts.push(blob(position, size))
   }
 
   // Scalp coverage. The face is left clear, and the cut sits lower at the back
@@ -158,7 +206,10 @@ function buildStyle(anchor: HeadAnchor, style: Exclude<HairStyle, 'none'>): THRE
     )
   }
 
-  // Hanging strands, grown downward from around the hairline.
+  // Hanging strands, grown downward from around the hairline. Each is built as
+  // its own geometry, positioned relative to where it is rooted, so it can
+  // pivot there independently of the cap and of every other strand.
+  const strands: StrandBuild[] = []
   if (spec.strands) {
     const { count, length, drift, spread, back, frontReach, plaited } = spec.strands
     // Angles are (right, forward) around the head: 0 is the right ear, pi/2 the
@@ -186,22 +237,40 @@ function buildStyle(anchor: HeadAnchor, style: Exclude<HairStyle, 'none'>): THRE
       // wanders forward and ends up laid across the jaw.
       const forwardLimit = frontReach + 0.05
 
+      const root = toLocal(right, up, forward)
+      const pieces: THREE.BufferGeometry[] = []
+      let tip = root
+
       for (let i = 0; i < length; i++) {
         // A plait is a stack of segments rather than a smooth tube, so its
         // thickness pulses down the length instead of tapering evenly.
         const taper = plaited ? 0.78 + 0.34 * Math.abs(Math.sin(i * 1.7)) : 0.95 - i * 0.02
-        addBlob(toLocal(right, up, forward), spec.blob * grain * taper)
+        tip = toLocal(right, up, forward)
+        pieces.push(blob(tip.clone().sub(root), spec.blob * grain * taper))
         up -= 0.16
         right += (right >= 0 ? 1 : -1) * drift * random()
         forward += (random() - 0.5) * drift
         if (forward > forwardLimit) forward = forwardLimit
+      }
+
+      const geometry = mergeGeometries(pieces, false)
+      pieces.forEach((p) => p.dispose())
+      if (geometry) {
+        const rest = tip.clone().sub(root)
+        if (rest.lengthSq() < 1e-8) rest.set(0, -1, 0)
+        strands.push({ root, rest: rest.normalize(), geometry })
       }
     }
   }
 
   const merged = mergeGeometries(parts, false)
   parts.forEach((p) => p.dispose())
-  return merged ?? new THREE.BufferGeometry()
+  return { cap: merged ?? new THREE.BufferGeometry(), strands }
+}
+
+interface BuiltStyle {
+  root: THREE.Group
+  strands: StrandState[]
 }
 
 export function createHair(anchor: HeadAnchor): HairRig {
@@ -209,28 +278,127 @@ export function createHair(anchor: HeadAnchor): HairRig {
   const material = new THREE.MeshStandardMaterial({ color: 0x2b1b12, roughness: 0.85, metalness: 0 })
   // Styles are built the first time they are chosen, then kept. Rebuilding a
   // two-hundred-blob afro on every toggle would stutter on a tablet.
-  const cache = new Map<HairStyle, THREE.Mesh>()
+  const cache = new Map<HairStyle, BuiltStyle>()
+  let active: BuiltStyle | null = null
 
   const setStyle = (style: HairStyle) => {
-    cache.forEach((mesh) => (mesh.visible = false))
+    cache.forEach((built) => (built.root.visible = false))
+    active = null
     if (style === 'none') return
 
-    let mesh = cache.get(style)
-    if (!mesh) {
-      mesh = new THREE.Mesh(buildStyle(anchor, style), material)
-      mesh.castShadow = true
-      cache.set(style, mesh)
-      group.add(mesh)
+    let built = cache.get(style)
+    if (!built) {
+      const shape = buildStyle(anchor, style)
+      const root = new THREE.Group()
+
+      const cap = new THREE.Mesh(shape.cap, material)
+      cap.castShadow = true
+      root.add(cap)
+
+      const strands = shape.strands.map(({ root: at, rest, geometry }) => {
+        const pivot = new THREE.Object3D()
+        pivot.position.copy(at)
+        const mesh = new THREE.Mesh(geometry, material)
+        mesh.castShadow = true
+        pivot.add(mesh)
+        root.add(pivot)
+        return { pivot, rest, direction: rest.clone(), spin: new THREE.Vector3() }
+      })
+
+      built = { root, strands }
+      cache.set(style, built)
+      group.add(root)
     }
-    mesh.visible = true
+    built.root.visible = true
+    active = built
+  }
+
+  // Head motion, tracked between frames to work out its acceleration.
+  const previousPosition = new THREE.Vector3()
+  const previousVelocity = new THREE.Vector3()
+  let seenAFrame = false
+
+  const velocity = new THREE.Vector3()
+  const acceleration = new THREE.Vector3()
+  const worldPosition = new THREE.Vector3()
+  const worldQuaternion = new THREE.Quaternion()
+  const inverseRotation = new THREE.Quaternion()
+  const localAcceleration = new THREE.Vector3()
+  const localDown = new THREE.Vector3()
+  const torque = new THREE.Vector3()
+  const term = new THREE.Vector3()
+
+  const update = (delta: number) => {
+    // A long frame makes a spring explode rather than lag, and one can happen
+    // any time the tab is backgrounded or a style is being built.
+    const step = Math.min(delta, 1 / 30)
+    if (step <= 0) return
+
+    anchor.bone.getWorldPosition(worldPosition)
+    anchor.bone.getWorldQuaternion(worldQuaternion)
+
+    if (!seenAFrame) {
+      previousPosition.copy(worldPosition)
+      seenAFrame = true
+      return
+    }
+
+    velocity.subVectors(worldPosition, previousPosition).divideScalar(step)
+    acceleration.subVectors(velocity, previousVelocity).divideScalar(step)
+    previousPosition.copy(worldPosition)
+    previousVelocity.copy(velocity)
+
+    if (!active || active.strands.length === 0) return
+
+    // Everything below is in the head's own space, so the rigid part of the
+    // motion still comes free from the skeleton.
+    inverseRotation.copy(worldQuaternion).invert()
+    localAcceleration.copy(acceleration).applyQuaternion(inverseRotation)
+    localDown.set(0, -1, 0).applyQuaternion(inverseRotation)
+
+    for (const strand of active.strands) {
+      const { rest, direction, spin } = strand
+
+      // Each pull is a torque turning the strand from where it points toward
+      // where something wants it to point.
+      torque.set(0, 0, 0)
+      torque.addScaledVector(term.crossVectors(direction, rest), REST_PULL)
+      torque.addScaledVector(term.crossVectors(direction, localDown), GRAVITY_PULL)
+      // Hair lags behind the head, so it swings against the acceleration.
+      torque.addScaledVector(term.crossVectors(direction, localAcceleration), -INERTIA)
+      torque.addScaledVector(spin, -DRAG)
+
+      spin.addScaledVector(torque, step)
+      term.copy(spin).multiplyScalar(step)
+      const angle = term.length()
+      if (angle > 1e-6) {
+        direction.applyAxisAngle(term.divideScalar(angle), angle).normalize()
+      }
+
+      // Clamp the deviation, then bleed off the spin that pushed past it, so a
+      // strand rests against the limit instead of grinding into it.
+      const swing = direction.angleTo(rest)
+      if (swing > MAX_SWING) {
+        term.crossVectors(rest, direction).normalize()
+        direction.copy(rest).applyAxisAngle(term, MAX_SWING)
+        spin.multiplyScalar(0.5)
+      }
+
+      strand.pivot.quaternion.setFromUnitVectors(rest, direction)
+    }
   }
 
   return {
     group,
     setStyle,
     setColor: (color: string) => material.color.set(color),
+    update,
     dispose: () => {
-      cache.forEach((mesh) => mesh.geometry.dispose())
+      cache.forEach((built) => {
+        built.root.traverse((child) => {
+          if (child instanceof THREE.Mesh) child.geometry.dispose()
+        })
+      })
       material.dispose()
     },
   }

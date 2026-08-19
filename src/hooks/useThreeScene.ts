@@ -210,6 +210,9 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
       const delta = clock.getDelta()
       camera.update(delta)
       animations?.update(delta)
+      // After the mixer, so the hair reacts to where the head has just been
+      // moved to rather than to last frame's pose.
+      hair?.update(delta)
       renderer.render(scene, camera.camera)
     }
     tick()
