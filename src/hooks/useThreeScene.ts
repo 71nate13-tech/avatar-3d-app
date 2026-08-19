@@ -3,11 +3,15 @@ import * as THREE from 'three'
 import { createScene } from '../three/scene'
 import { createHumanoid } from '../three/avatar/humanoid'
 import { MarioCamera } from '../three/camera/MarioCamera'
+import { loadCharacter } from '../three/avatar/AvatarModel'
+import { AnimationManager } from '../three/avatar/AnimationManager'
 import { useAvatarStore, type AvatarAppearance } from '../stores/avatarStore'
+import { useDanceStore } from '../stores/danceStore'
+import { CHARACTER_URL, DANCE_URLS } from '../data/dances'
 
 /**
- * Owns the Three.js lifecycle for one canvas: build the world, run the render
- * loop, and tear everything down on unmount.
+ * Owns the Three.js lifecycle for one canvas: build the world, load the avatar,
+ * run the render loop, and tear everything down on unmount.
  *
  * Three.js objects live in refs rather than state — they change every frame and
  * re-rendering React on that would be pointless work.
@@ -25,23 +29,86 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
     const { scene, dispose: disposeScene } = createScene()
-    const avatar = createHumanoid()
-    scene.add(avatar.group)
+
+    // Show the primitive figure straight away rather than an empty stage, then
+    // swap it for the real character once that arrives.
+    const placeholder = createHumanoid()
+    scene.add(placeholder.group)
 
     const parent = canvas.parentElement!
     const camera = new MarioCamera(canvas, parent.clientWidth / parent.clientHeight)
     cameraRef.current = camera
 
+    // Materials to tint, rebound when the real character replaces the placeholder.
+    let tintTargets: {
+      skin: THREE.MeshStandardMaterial[]
+      hair: THREE.MeshStandardMaterial[]
+      clothing: THREE.MeshStandardMaterial[]
+    } = {
+      skin: [placeholder.materials.skin],
+      hair: [placeholder.materials.hair],
+      clothing: [placeholder.materials.clothing],
+    }
+
     // Subscribe to the store outside React: colours change on every drag of the
     // picker, and pushing that through a re-render would rebuild the scene.
     // Writing straight to the materials is picked up by the next frame.
     const applyAppearance = (appearance: AvatarAppearance) => {
-      avatar.materials.skin.color.set(appearance.skinColor)
-      avatar.materials.hair.color.set(appearance.hairColor)
-      avatar.materials.clothing.color.set(appearance.clothingColor)
+      tintTargets.skin.forEach((m) => m.color.set(appearance.skinColor))
+      tintTargets.hair.forEach((m) => m.color.set(appearance.hairColor))
+      tintTargets.clothing.forEach((m) => m.color.set(appearance.clothingColor))
     }
     applyAppearance(useAvatarStore.getState())
     const unsubscribeAppearance = useAvatarStore.subscribe(applyAppearance)
+
+    let animations: AnimationManager | null = null
+    let unsubscribeDance: (() => void) | null = null
+    let disposeCharacter: (() => void) | null = null
+    let cancelled = false
+
+    loadCharacter(CHARACTER_URL, DANCE_URLS)
+      .then((character) => {
+        // The effect can be torn down while the download is still in flight.
+        if (cancelled) {
+          character.dispose()
+          return
+        }
+
+        scene.remove(placeholder.group)
+        placeholder.dispose()
+        scene.add(character.group)
+
+        // Y Bot and X Bot carry two plain materials: the body shell and the
+        // joints. Mapping them to clothing and skin keeps the pickers doing
+        // something honest until per-part customisation is designed properly.
+        tintTargets = {
+          clothing: character.materials.slice(0, 1),
+          skin: character.materials.slice(1, 2),
+          hair: [],
+        }
+        applyAppearance(useAvatarStore.getState())
+
+        animations = new AnimationManager(character.mixer, character.clips)
+        disposeCharacter = character.dispose
+
+        const available = animations.names
+        useDanceStore.getState().setAvailable(available)
+        useDanceStore.getState().setStatus('ready')
+
+        unsubscribeDance = useDanceStore.subscribe((state) => {
+          if (state.current) animations?.play(state.current)
+          else animations?.stop()
+        })
+
+        // Standing perfectly still reads as broken, so start on idle if present.
+        const first = available.includes('idle') ? 'idle' : available[0]
+        if (first) useDanceStore.getState().setCurrent(first)
+      })
+      .catch((error) => {
+        if (cancelled) return
+        console.warn('[avatar] falling back to placeholder figure:', error)
+        useDanceStore.getState().setStatus('fallback')
+      })
 
     const resize = () => {
       const { clientWidth: w, clientHeight: h } = parent
@@ -60,17 +127,22 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
     let frame = 0
     const tick = () => {
       frame = requestAnimationFrame(tick)
-      camera.update(clock.getDelta())
+      const delta = clock.getDelta()
+      camera.update(delta)
+      animations?.update(delta)
       renderer.render(scene, camera.camera)
     }
     tick()
 
     return () => {
+      cancelled = true
       cancelAnimationFrame(frame)
       observer.disconnect()
       unsubscribeAppearance()
+      unsubscribeDance?.()
       camera.dispose()
-      avatar.dispose()
+      disposeCharacter?.()
+      if (!disposeCharacter) placeholder.dispose()
       disposeScene()
       renderer.dispose()
     }

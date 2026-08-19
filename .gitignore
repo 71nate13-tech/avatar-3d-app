@@ -1,6 +1,12 @@
 node_modules/
 dist/
 build/
+
+# Mixamo models. Licensed for use but not redistribution, and multi-megabyte
+# binaries in Git history are permanent. See public/models/README.md to fetch them.
+public/models/**/*.fbx
+public/models/**/*.glb
+public/models/**/*.dae
 .env
 .env.local
 .env.*.local
