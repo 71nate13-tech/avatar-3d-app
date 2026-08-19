@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import type { Outfit, TopStyle, BottomStyle } from '../three/avatar/clothing'
 import type { ExpressionName } from '../three/avatar/face'
 import type { HairStyle } from '../three/avatar/hair'
@@ -64,29 +65,60 @@ interface AvatarStore extends AvatarAppearance {
   reset: () => void
 }
 
-export const useAvatarStore = create<AvatarStore>((set) => ({
-  ...DEFAULT_APPEARANCE,
-  // The placeholder figure shows first and has no garment separation.
-  tintable: {
-    skin: true,
-    hair: true,
-    top: true,
-    bottom: false,
-    shoes: false,
-    outfit: false,
-    head: false,
-  },
-  setTintable: (tintable) => set({ tintable }),
-  setSkinColor: (skinColor) => set({ skinColor }),
-  setHairColor: (hairColor) => set({ hairColor }),
-  setEyeColor: (eyeColor) => set({ eyeColor }),
-  setHairStyle: (hairStyle) => set({ hairStyle }),
-  setExpression: (expression) => set({ expression }),
-  setTopColor: (topColor) => set({ topColor }),
-  setBottomColor: (bottomColor) => set({ bottomColor }),
-  setShoesColor: (shoesColor) => set({ shoesColor }),
-  setTop: (top) => set((s) => ({ outfit: { ...s.outfit, top } })),
-  setBottom: (bottom) => set((s) => ({ outfit: { ...s.outfit, bottom } })),
-  setShoes: (shoes) => set((s) => ({ outfit: { ...s.outfit, shoes } })),
-  reset: () => set({ ...DEFAULT_APPEARANCE }),
-}))
+/**
+ * The look is saved to local storage and restored on the next launch.
+ *
+ * Rehydration is synchronous, so by the time the 3D layer reads the store the
+ * saved values are already in place and the avatar is simply built correctly
+ * the first time. There is no flash of the default look and nothing to re-apply.
+ *
+ * Only appearance is stored. `tintable` is derived from whichever model loaded,
+ * so persisting it would let a stale answer outlive the model it described.
+ */
+export const useAvatarStore = create<AvatarStore>()(
+  persist(
+    (set) => ({
+      ...DEFAULT_APPEARANCE,
+      // The placeholder figure shows first and has no garment separation.
+      tintable: {
+        skin: true,
+        hair: true,
+        top: true,
+        bottom: false,
+        shoes: false,
+        outfit: false,
+        head: false,
+      },
+      setTintable: (tintable) => set({ tintable }),
+      setSkinColor: (skinColor) => set({ skinColor }),
+      setHairColor: (hairColor) => set({ hairColor }),
+      setEyeColor: (eyeColor) => set({ eyeColor }),
+      setHairStyle: (hairStyle) => set({ hairStyle }),
+      setExpression: (expression) => set({ expression }),
+      setTopColor: (topColor) => set({ topColor }),
+      setBottomColor: (bottomColor) => set({ bottomColor }),
+      setShoesColor: (shoesColor) => set({ shoesColor }),
+      setTop: (top) => set((s) => ({ outfit: { ...s.outfit, top } })),
+      setBottom: (bottom) => set((s) => ({ outfit: { ...s.outfit, bottom } })),
+      setShoes: (shoes) => set((s) => ({ outfit: { ...s.outfit, shoes } })),
+      reset: () => set({ ...DEFAULT_APPEARANCE }),
+    }),
+    {
+      name: 'avatar-appearance',
+      // Bump when the shape of what is stored changes. Without it, a saved
+      // look from an older build rehydrates into fields that no longer exist.
+      version: 1,
+      partialize: (state) => ({
+        skinColor: state.skinColor,
+        hairColor: state.hairColor,
+        eyeColor: state.eyeColor,
+        topColor: state.topColor,
+        bottomColor: state.bottomColor,
+        shoesColor: state.shoesColor,
+        outfit: state.outfit,
+        hairStyle: state.hairStyle,
+        expression: state.expression,
+      }),
+    },
+  ),
+)

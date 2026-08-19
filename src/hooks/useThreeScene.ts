@@ -152,8 +152,16 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
           else animations?.stop()
         })
 
-        // Standing perfectly still reads as broken, so start on idle if present.
-        const first = available.includes('idle') ? 'idle' : available[0]
+        // Prefer whatever was playing last time, but only if its file is still
+        // here — dances can be removed between launches. Standing perfectly
+        // still reads as broken, so fall back to idle, then to anything.
+        const saved = useDanceStore.getState().current
+        const first =
+          saved && available.includes(saved)
+            ? saved
+            : available.includes('idle')
+              ? 'idle'
+              : available[0]
         if (first) useDanceStore.getState().setCurrent(first)
       })
       .catch((error) => {
