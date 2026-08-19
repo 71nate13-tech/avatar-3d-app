@@ -76,13 +76,21 @@ interface StyleSpec {
   strands?: { count: number; length: number; drift: number; spread: number; back: boolean }
 }
 
+/**
+ * Blob size and density are linked, not free choices. Spacing between blob
+ * centres is roughly `radius * sqrt(4π / samples)`, so a blob smaller than half
+ * that leaves bare scalp showing between them. Buzz originally used 0.10 at 180
+ * samples, which needs 0.13 to close up, and rendered as scattered dots that
+ * read as balding rather than as short hair. Short styles therefore get their
+ * fineness from more blobs, not smaller ones.
+ */
 const SPECS: Record<Exclude<HairStyle, 'none'>, StyleSpec> = {
-  buzz: { shell: 1.02, blob: 0.1, density: 90 },
-  coils: { shell: 1.1, blob: 0.17, density: 80 },
+  buzz: { shell: 1.02, blob: 0.115, density: 200 },
+  coils: { shell: 1.1, blob: 0.19, density: 80 },
   afro: { shell: 1.28, blob: 0.3, density: 70 },
-  locs: { shell: 1.06, blob: 0.13, density: 70, strands: { count: 16, length: 14, drift: 0.055, spread: 0.9, back: false } },
-  braids: { shell: 1.05, blob: 0.12, density: 70, strands: { count: 10, length: 16, drift: 0.045, spread: 1.0, back: false } },
-  ponytail: { shell: 1.05, blob: 0.13, density: 80, strands: { count: 3, length: 15, drift: 0.06, spread: 0.14, back: true } },
+  locs: { shell: 1.06, blob: 0.145, density: 130, strands: { count: 16, length: 14, drift: 0.055, spread: 0.9, back: false } },
+  braids: { shell: 1.05, blob: 0.14, density: 130, strands: { count: 10, length: 16, drift: 0.045, spread: 1.0, back: false } },
+  ponytail: { shell: 1.05, blob: 0.145, density: 140, strands: { count: 4, length: 15, drift: 0.06, spread: 0.3, back: true } },
   long: { shell: 1.08, blob: 0.2, density: 80, strands: { count: 22, length: 13, drift: 0.03, spread: 1.0, back: false } },
 }
 
@@ -125,14 +133,17 @@ function buildStyle(anchor: HeadAnchor, style: Exclude<HairStyle, 'none'>): THRE
   // Hanging strands, grown downward from around the hairline.
   if (spec.strands) {
     const { count, length, drift, spread, back } = spec.strands
+    // Angles are (right, forward) around the head: 0 is the right ear, π/2 the
+    // face, and 3π/2 the back of the skull. A tail bunches at the back; other
+    // styles sweep the 1.7π of arc that excludes the face entirely, so no
+    // strand has to be discarded and the requested count is what gets built.
+    const BACK_ANGLE = Math.PI * 1.5
     for (let s = 0; s < count; s++) {
-      // Spread across the back and sides, or bunched at the back for a tail.
       const angle = back
-        ? Math.PI + (random() - 0.5) * spread
-        : (s / count) * Math.PI * 2 * spread + Math.PI * 0.5
+        ? BACK_ANGLE + (random() - 0.5) * spread
+        : Math.PI * 0.65 + (s / Math.max(count - 1, 1)) * Math.PI * 1.7
       const startX = Math.cos(angle) * 0.92
       const startZ = Math.sin(angle) * 0.92
-      if (startZ > 0.45) continue // never in front of the face
 
       let right = startX * r
       let up = r * (back ? 0.15 : -0.05)
