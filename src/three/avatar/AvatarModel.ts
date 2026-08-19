@@ -37,25 +37,45 @@ const HAIR_PATTERN = /hair|beard|brow|lash/i
 // joints are accent pieces sitting on top of the body shell, so they behave far
 // more like clothing than like skin.
 const CLOTHING_PATTERN = /shirt|pant|cloth|dress|jacket|shoe|top|bottom|outfit|suit|vest|sock|boot|joint/i
-// `surface` catches Mixamo's mannequins, whose body shell is `Beta_Surface`.
-// That shell is most of what you see, so it belongs to the skin control — which
-// is what makes picking a skin tone change the whole figure.
-const SKIN_PATTERN = /skin|body|head|face|arm|leg|hand|foot|surface/i
+// `limb` and `surface` catch Mixamo's mannequins, whose body shell loads as
+// `Beta_HighLimbsGeoSG3`. That shell is most of what you see, so it belongs to
+// the skin control — which is what makes picking a skin tone change the whole
+// figure rather than a few accents.
+const SKIN_PATTERN = /skin|body|head|face|arm|leg|hand|foot|surface|limb|torso/i
 
-function bucketMaterials(all: THREE.MeshStandardMaterial[]): CharacterMaterials {
+function bucketMaterials(
+  all: THREE.MeshStandardMaterial[],
+  /** Vertices drawn with each material, used to tell a body from its trim. */
+  sizes: Map<THREE.Material, number>,
+): CharacterMaterials {
   const buckets: CharacterMaterials = { skin: [], hair: [], clothing: [], all }
+  const unmatched: THREE.MeshStandardMaterial[] = []
 
   for (const material of all) {
     const name = material.name ?? ''
     if (HAIR_PATTERN.test(name)) buckets.hair.push(material)
     else if (CLOTHING_PATTERN.test(name)) buckets.clothing.push(material)
     else if (SKIN_PATTERN.test(name)) buckets.skin.push(material)
-    else buckets.clothing.push(material)
+    else unmatched.push(material)
+  }
+
+  // Names that matched nothing are sorted by how much of the model they cover.
+  // The biggest is the body and belongs to skin; the rest read as trim. Going
+  // by size rather than by load order matters, because the arbitrary choice is
+  // wrong roughly half the time and fails silently: the figure still recolours,
+  // just from the control nobody expects. That is exactly what happened with
+  // Mixamo's mannequin, whose body shell is named `Beta_HighLimbsGeoSG3` and
+  // matched none of the patterns above.
+  if (unmatched.length > 0) {
+    unmatched.sort((a, b) => (sizes.get(b) ?? 0) - (sizes.get(a) ?? 0))
+    const [largest, ...rest] = unmatched
+    if (buckets.skin.length === 0) buckets.skin.push(largest)
+    else buckets.clothing.push(largest)
+    buckets.clothing.push(...rest)
   }
 
   // A control wired to an empty bucket looks broken — you click it and nothing
-  // moves. With at least two materials, make sure skin and clothing both have
-  // one, borrowing from whichever bucket is overfull.
+  // moves — so make sure skin and clothing both have one where possible.
   if (all.length >= 2) {
     if (buckets.skin.length === 0 && buckets.clothing.length > 1) {
       buckets.skin.push(buckets.clothing.pop()!)
@@ -101,10 +121,12 @@ export async function loadCharacter(
   group.scale.setScalar(MIXAMO_SCALE)
 
   const collected: THREE.MeshStandardMaterial[] = []
+  const sizes = new Map<THREE.Material, number>()
   group.traverse((child) => {
     if (!(child instanceof THREE.Mesh)) return
     child.castShadow = true
     child.receiveShadow = true
+    const vertexCount = child.geometry.getAttribute('position')?.count ?? 0
     // FBX arrives with Phong materials; convert so it lights the same way as
     // the rest of the scene, which is built on the standard PBR model.
     const source = Array.isArray(child.material) ? child.material : [child.material]
@@ -123,6 +145,9 @@ export async function loadCharacter(
         metalness: 0,
       })
       collected.push(converted)
+      // Split evenly when one mesh carries several materials — good enough to
+      // rank a body against its trim, which is all this is used for.
+      sizes.set(converted, (sizes.get(converted) ?? 0) + vertexCount / source.length)
       old.dispose()
       return converted
     })
@@ -131,7 +156,7 @@ export async function loadCharacter(
     }
   })
 
-  const materials = bucketMaterials(collected)
+  const materials = bucketMaterials(collected, sizes)
 
   const mixer = new THREE.AnimationMixer(group)
   const clips = new Map<string, THREE.AnimationClip>()
