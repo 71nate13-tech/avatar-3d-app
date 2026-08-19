@@ -70,6 +70,22 @@ its own rigs, so animations exported from the same character drop onto the
 skeleton with no retargeting. Mixing characters reintroduces bone-name mismatch,
 which is the usual reason Mixamo animations explode into a tangle of limbs.
 
+## Restart the dev server after adding a file here
+
+Vite decides what lives in `public/` when it starts, and this folder is left out
+of its file watcher (watching multi-megabyte binaries gains nothing and killed
+the server with EBUSY when it opened one mid-copy). A file added while the
+server is running is therefore invisible to it.
+
+The failure is quiet rather than loud: the request falls through to the SPA
+fallback, so the browser gets `index.html` with a **200 OK** and the FBX loader
+reports a parse failure on what looks like a perfectly good response. Checking
+the status code will not reveal it — check that the body starts with
+`Kaydara FBX Binary`.
+
+Overwriting a file that already existed works without a restart. Only new
+filenames need one.
+
 ## Gotchas already handled in code
 
 - **Scale.** Mixamo exports in centimetres, so a character arrives 100× too large.
