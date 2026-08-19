@@ -1,6 +1,5 @@
 node_modules/
 dist/
-build/
 release/
 
 # Mixamo models. Licensed for use but not redistribution, and multi-megabyte
