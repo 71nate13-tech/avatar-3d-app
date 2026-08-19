@@ -30,6 +30,8 @@ export const DANCES: Dance[] = [
   { id: 'salsa', label: 'Salsa' },
   { id: 'robot', label: 'Robot' },
   { id: 'shuffle', label: 'Shuffle' },
+  { id: 'uprock', label: 'Uprock' },
+  { id: 'rumba', label: 'Rumba' },
 ]
 
 export const DANCE_URLS: Record<string, string> = Object.fromEntries(
