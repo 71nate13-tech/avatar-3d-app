@@ -8,6 +8,7 @@ import Slider from './customization/Slider'
 import Section from './customization/Section'
 import DanceController from './dance/DanceController'
 import ShareButton from './ShareButton'
+import MomentCodes from './MomentCodes'
 import { DANCES } from '../data/dances'
 import { HAIR_STYLES } from '../three/avatar/hair'
 import { HAT_STYLES, GLASSES_STYLES, EARRING_STYLES } from '../three/avatar/accessories'
@@ -47,7 +48,15 @@ function joinWorn(parts: (string | null)[]): string {
   return worn.length ? worn.join(', ') : 'None'
 }
 
-type SectionName = 'dance' | 'body' | 'face' | 'hair' | 'clothing' | 'accessories' | 'skin'
+type SectionName =
+  | 'dance'
+  | 'body'
+  | 'face'
+  | 'hair'
+  | 'clothing'
+  | 'accessories'
+  | 'skin'
+  | 'moments'
 
 export default function ControlPanel() {
   const s = useAvatarStore()
@@ -273,6 +282,14 @@ export default function ControlPanel() {
             )}
           </Section>
         )}
+        <Section
+          title="Brand moments"
+          summary="Scan to try"
+          open={open === 'moments'}
+          onToggle={() => toggle('moments')}
+        >
+          <MomentCodes />
+        </Section>
       </div>
 
       {/* Pinned, so they do not scroll away behind whichever section is open. */}

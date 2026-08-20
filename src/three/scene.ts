@@ -1,9 +1,15 @@
 import * as THREE from 'three'
 
 /** Builds the world the avatar stands in: lights, ground, and backdrop. */
-export function createScene(): { scene: THREE.Scene; dispose: () => void } {
+export function createScene(): {
+  scene: THREE.Scene
+  setGround: (color: string, grid: boolean) => void
+  dispose: () => void
+} {
   const scene = new THREE.Scene()
-  scene.background = new THREE.Color(0x1a1a24)
+  // Left transparent on purpose: the page paints behind the canvas, which lets
+  // a brand moment use a gradient. A scene background can only be a flat colour.
+  scene.background = null
 
   // Key light, angled so the avatar has a readable light and shadow side.
   const key = new THREE.DirectionalLight(0xffffff, 2.2)
@@ -41,6 +47,10 @@ export function createScene(): { scene: THREE.Scene; dispose: () => void } {
 
   return {
     scene,
+    setGround: (color, showGrid) => {
+      groundMaterial.color.set(color)
+      grid.visible = showGrid
+    },
     dispose: () => {
       groundGeometry.dispose()
       groundMaterial.dispose()

@@ -24,12 +24,17 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
     const canvas = canvasRef.current
     if (!canvas) return
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
+    // alpha, so whatever the page paints behind the canvas shows through.
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     renderer.shadowMap.enabled = true
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
-    const { scene, dispose: disposeScene } = createScene()
+    const { scene, setGround, dispose: disposeScene } = createScene()
+
+    const applyTheme = (theme: { ground: string; grid: boolean }) => setGround(theme.ground, theme.grid)
+    applyTheme(useSceneStore.getState().theme)
+    const unsubscribeTheme = useSceneStore.subscribe((state) => applyTheme(state.theme))
 
     // Show the primitive figure straight away rather than an empty stage, then
     // swap it for the real character once that arrives.
@@ -261,6 +266,7 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
       cancelled = true
       cancelAnimationFrame(frame)
       useSceneStore.getState().setCapture(null)
+      unsubscribeTheme()
       observer.disconnect()
       unsubscribeAppearance()
       unsubscribeDance?.()

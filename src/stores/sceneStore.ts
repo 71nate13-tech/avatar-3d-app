@@ -11,14 +11,32 @@ import { create } from 'zustand'
  *
  * Nothing here is persisted — it is a live function, meaningless across runs.
  */
+/** How the world around the avatar looks. A brand moment restages it. */
+export interface SceneTheme {
+  /** CSS, painted behind the transparent canvas, so gradients are possible. */
+  background: string
+  ground: string
+  grid: boolean
+}
+
+export const DEFAULT_THEME: SceneTheme = {
+  background: '#1a1a24',
+  ground: '#2e2e3d',
+  grid: true,
+}
+
 interface SceneStore {
   /** Renders a frame and returns it as a PNG data URL. Null before the scene
    *  is up, which is what disables the share button. */
   capture: (() => string) | null
   setCapture: (capture: (() => string) | null) => void
+  theme: SceneTheme
+  setTheme: (theme: SceneTheme) => void
 }
 
 export const useSceneStore = create<SceneStore>((set) => ({
   capture: null,
   setCapture: (capture) => set({ capture }),
+  theme: DEFAULT_THEME,
+  setTheme: (theme) => set({ theme }),
 }))
