@@ -4,6 +4,7 @@ import ColorSwatches from './customization/ColorSwatches'
 import StylePicker from './customization/StylePicker'
 import Slider from './customization/Slider'
 import DanceController from './dance/DanceController'
+import ShareButton from './ShareButton'
 import type { TopStyle, BottomStyle } from '../three/avatar/clothing'
 import { HAIR_STYLES } from '../three/avatar/hair'
 import type { ExpressionName } from '../three/avatar/face'
@@ -140,13 +141,16 @@ export default function ControlPanel() {
         />
       )}
 
-      <button
-        type="button"
-        onClick={s.reset}
-        className="mt-auto rounded-md border border-white/15 px-3 py-2 text-sm text-white/70 transition hover:border-white/40 hover:text-white"
-      >
-        Reset
-      </button>
+      <div className="mt-auto space-y-2 pt-2">
+        <ShareButton />
+        <button
+          type="button"
+          onClick={s.reset}
+          className="w-full rounded-md border border-white/15 px-3 py-2 text-sm text-white/70 transition hover:border-white/40 hover:text-white"
+        >
+          Reset
+        </button>
+      </div>
     </aside>
   )
 }

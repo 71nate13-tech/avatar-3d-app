@@ -7,6 +7,7 @@ import { loadCharacter } from '../three/avatar/AvatarModel'
 import { AnimationManager } from '../three/avatar/AnimationManager'
 import { useAvatarStore, type AvatarAppearance } from '../stores/avatarStore'
 import { useDanceStore } from '../stores/danceStore'
+import { useSceneStore } from '../stores/sceneStore'
 import { CHARACTER_URL, DANCE_URLS, EMBEDDED_CLIP_ID } from '../data/dances'
 
 /**
@@ -203,6 +204,15 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
     const observer = new ResizeObserver(resize)
     observer.observe(parent)
 
+    // Reading the canvas only returns pixels if nothing has cleared the drawing
+    // buffer since the last draw, so render again immediately before reading
+    // rather than leaving preserveDrawingBuffer on, which costs every frame to
+    // serve a button pressed occasionally.
+    useSceneStore.getState().setCapture(() => {
+      renderer.render(scene, camera.camera)
+      return renderer.domElement.toDataURL('image/png')
+    })
+
     const clock = new THREE.Clock()
     let frame = 0
     const tick = () => {
@@ -220,6 +230,7 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
     return () => {
       cancelled = true
       cancelAnimationFrame(frame)
+      useSceneStore.getState().setCapture(null)
       observer.disconnect()
       unsubscribeAppearance()
       unsubscribeDance?.()
