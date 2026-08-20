@@ -61,6 +61,7 @@ export interface Outfit {
   top: TopStyle
   bottom: BottomStyle
   shoes: boolean
+  gloves: boolean
 }
 
 const TOP_COVERS: Record<TopStyle, BodyPart[]> = {
@@ -77,7 +78,7 @@ const BOTTOM_COVERS: Record<BottomStyle, BodyPart[]> = {
 }
 
 /** Index into the mesh's material array. */
-export const MATERIAL_SLOT = { skin: 0, top: 1, bottom: 2, shoes: 3 } as const
+export const MATERIAL_SLOT = { skin: 0, top: 1, bottom: 2, shoes: 3, gloves: 4 } as const
 
 export interface ClothingAnalysis {
   /** Which body part each triangle belongs to. Fixed once the mesh is loaded. */
@@ -154,10 +155,13 @@ export function applyOutfit(analysis: ClothingAnalysis, outfit: Outfit) {
   for (const part of TOP_COVERS[outfit.top]) slotForPart.set(part, MATERIAL_SLOT.top)
   for (const part of BOTTOM_COVERS[outfit.bottom]) slotForPart.set(part, MATERIAL_SLOT.bottom)
   if (outfit.shoes) slotForPart.set('foot', MATERIAL_SLOT.shoes)
+  // Gloves are set after sleeves on purpose: a long sleeve reaches the wrist,
+  // and the hand beyond it belongs to the glove.
+  if (outfit.gloves) slotForPart.set('hand', MATERIAL_SLOT.gloves)
 
   // Bucket triangles per slot, then concatenate. Sorting an index array of a few
   // thousand entries is far cheaper than rebuilding the geometry.
-  const buckets: number[][] = [[], [], [], []]
+  const buckets: number[][] = [[], [], [], [], []]
   for (let t = 0; t < trianglePart.length; t++) {
     buckets[slotForPart.get(trianglePart[t]) ?? MATERIAL_SLOT.skin].push(t)
   }

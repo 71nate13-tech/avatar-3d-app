@@ -5,6 +5,7 @@ import { measureHead } from './headAnchor'
 import { createFace, type FaceRig } from './face'
 import { createHair, type HairRig } from './hair'
 import { analyseBody, applyBuild, type BodyAnalysis } from './bodyShape'
+import { createAccessories, type AccessoryRig } from './accessories'
 
 /**
  * Loads a rigged Mixamo character and its dance clips.
@@ -31,6 +32,7 @@ export interface CharacterMaterials {
   top: THREE.MeshStandardMaterial
   bottom: THREE.MeshStandardMaterial
   shoes: THREE.MeshStandardMaterial
+  gloves: THREE.MeshStandardMaterial
 }
 
 export interface LoadedCharacter {
@@ -45,6 +47,7 @@ export interface LoadedCharacter {
   /** Null when the character has no recognisable head bone to attach to. */
   face: FaceRig | null
   hair: HairRig | null
+  accessories: AccessoryRig | null
   /** Reshapes the mesh; -0.3 slighter, 0 as modelled, +0.6 heavier. */
   setBuild: (build: number) => void
   /** Uniform scale on top of the export scale, so 1 is the modelled height. */
@@ -115,10 +118,17 @@ export async function loadCharacter(
     top: createMaterial('top'),
     bottom: createMaterial('bottom'),
     shoes: createMaterial('shoes'),
+    gloves: createMaterial('gloves'),
   }
   // Order matches MATERIAL_SLOT in clothing.ts — the geometry groups index
   // into this array, so the two must stay in step.
-  const materialList = [materials.skin, materials.top, materials.bottom, materials.shoes]
+  const materialList = [
+    materials.skin,
+    materials.top,
+    materials.bottom,
+    materials.shoes,
+    materials.gloves,
+  ]
 
   const clothing: ClothingAnalysis[] = []
   group.traverse((child) => {
@@ -146,6 +156,7 @@ export async function loadCharacter(
   // the head happened to be on frame one.
   let face: FaceRig | null = null
   let hair: HairRig | null = null
+  let accessories: AccessoryRig | null = null
   const bodyMesh = clothing[0]?.mesh
 
   // Build is analysed from the same untouched bind pose, and the head is
@@ -160,10 +171,12 @@ export async function loadCharacter(
   if (anchor) {
     face = createFace(anchor)
     hair = createHair(anchor)
+    accessories = createAccessories(anchor)
     // Parenting to the bone rather than the group is what makes these ride the
     // animation: the bone is already being posed every frame.
     anchor.bone.add(face.group)
     anchor.bone.add(hair.group)
+    anchor.bone.add(accessories.group)
   } else {
     console.warn('[avatar] no head bone found — face and hair unavailable')
   }
@@ -210,6 +223,7 @@ export async function loadCharacter(
     setOutfit: (outfit) => clothing.forEach((analysis) => applyOutfit(analysis, outfit)),
     face,
     hair,
+    accessories,
     setBuild: (build) => bodies.forEach((body) => applyBuild(body, build)),
     // Multiplies the export scale rather than replacing it, so the centimetre
     // conversion is not silently undone.
@@ -220,6 +234,7 @@ export async function loadCharacter(
       mixer.uncacheRoot(group)
       face?.dispose()
       hair?.dispose()
+      accessories?.dispose()
       group.traverse((child) => {
         if (child instanceof THREE.Mesh) child.geometry.dispose()
       })

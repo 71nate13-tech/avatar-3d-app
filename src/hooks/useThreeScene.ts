@@ -43,14 +43,22 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
     // Materials to tint, rebound when the real character replaces the placeholder.
     // The placeholder has one clothing material and no garment separation, so it
     // follows the top colour and leaves the other two controls hidden.
-    type TintTargets = Record<'skin' | 'hair' | 'top' | 'bottom' | 'shoes', THREE.MeshStandardMaterial[]>
+    type TintTargets = Record<
+      'skin' | 'hair' | 'top' | 'bottom' | 'shoes' | 'gloves',
+      THREE.MeshStandardMaterial[]
+    >
     let tintTargets: TintTargets = {
       skin: [placeholder.materials.skin],
       hair: [placeholder.materials.hair],
       top: [placeholder.materials.clothing],
       bottom: [],
       shoes: [],
+      gloves: [],
     }
+    let accessories: import('../three/avatar/accessories').AccessoryRig | null = null
+    let lastHat: string | null = null
+    let lastGlasses: string | null = null
+    let lastEarrings: string | null = null
     let setOutfit: ((outfit: AvatarAppearance['outfit']) => void) | null = null
     let lastOutfit: AvatarAppearance['outfit'] | null = null
     let face: import('../three/avatar/face').FaceRig | null = null
@@ -70,6 +78,23 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
       tintTargets.top.forEach((m) => m.color.set(appearance.topColor))
       tintTargets.bottom.forEach((m) => m.color.set(appearance.bottomColor))
       tintTargets.shoes.forEach((m) => m.color.set(appearance.shoesColor))
+      tintTargets.gloves.forEach((m) => m.color.set(appearance.glovesColor))
+
+      accessories?.setHatColor(appearance.hatColor)
+      accessories?.setAccentColor(appearance.accentColor)
+      // Each style builds its geometry on first use, so only swap on a change.
+      if (accessories && appearance.hat !== lastHat) {
+        accessories.setHat(appearance.hat)
+        lastHat = appearance.hat
+      }
+      if (accessories && appearance.glasses !== lastGlasses) {
+        accessories.setGlasses(appearance.glasses)
+        lastGlasses = appearance.glasses
+      }
+      if (accessories && appearance.earrings !== lastEarrings) {
+        accessories.setEarrings(appearance.earrings)
+        lastEarrings = appearance.earrings
+      }
 
       face?.setExpression(appearance.expression)
       face?.setEyeColor(appearance.eyeColor)
@@ -138,7 +163,12 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
           top: [character.materials.top],
           bottom: [character.materials.bottom],
           shoes: [character.materials.shoes],
+          gloves: [character.materials.gloves],
         }
+        accessories = character.accessories
+        lastHat = null
+        lastGlasses = null
+        lastEarrings = null
         setOutfit = hasClothing ? character.setOutfit : null
         lastOutfit = null
         face = character.face

@@ -7,6 +7,7 @@ import DanceController from './dance/DanceController'
 import ShareButton from './ShareButton'
 import type { TopStyle, BottomStyle } from '../three/avatar/clothing'
 import { HAIR_STYLES } from '../three/avatar/hair'
+import { HAT_STYLES, GLASSES_STYLES, EARRING_STYLES } from '../three/avatar/accessories'
 import type { ExpressionName } from '../three/avatar/face'
 
 const EXPRESSION_OPTIONS: { value: ExpressionName; label: string }[] = [
@@ -99,6 +100,33 @@ export default function ControlPanel() {
             value={outfit.shoes ? 'on' : 'off'}
             onChange={(v) => s.setShoes(v === 'on')}
           />
+          <StylePicker
+            label="Gloves"
+            options={[
+              { value: 'off', label: 'Bare' },
+              { value: 'on', label: 'Gloves' },
+            ]}
+            value={outfit.gloves ? 'on' : 'off'}
+            onChange={(v) => s.setGloves(v === 'on')}
+          />
+        </>
+      )}
+
+      {tintable.head && (
+        <>
+          <StylePicker label="Hat" options={HAT_STYLES} value={s.hat} onChange={s.setHat} />
+          <StylePicker
+            label="Glasses"
+            options={GLASSES_STYLES}
+            value={s.glasses}
+            onChange={s.setGlasses}
+          />
+          <StylePicker
+            label="Earrings"
+            options={EARRING_STYLES}
+            value={s.earrings}
+            onChange={s.setEarrings}
+          />
         </>
       )}
 
@@ -138,6 +166,30 @@ export default function ControlPanel() {
           colors={CLOTHING_COLORS}
           value={s.shoesColor}
           onChange={s.setShoesColor}
+        />
+      )}
+      {tintable.outfit && outfit.gloves && (
+        <ColorSwatches
+          label="Glove colour"
+          colors={CLOTHING_COLORS}
+          value={s.glovesColor}
+          onChange={s.setGlovesColor}
+        />
+      )}
+      {tintable.head && s.hat !== 'none' && (
+        <ColorSwatches
+          label="Hat colour"
+          colors={CLOTHING_COLORS}
+          value={s.hatColor}
+          onChange={s.setHatColor}
+        />
+      )}
+      {tintable.head && (s.glasses !== 'none' || s.earrings !== 'none') && (
+        <ColorSwatches
+          label="Trim colour"
+          colors={CLOTHING_COLORS}
+          value={s.accentColor}
+          onChange={s.setAccentColor}
         />
       )}
 

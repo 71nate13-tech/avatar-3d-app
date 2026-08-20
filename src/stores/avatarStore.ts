@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import type { Outfit, TopStyle, BottomStyle } from '../three/avatar/clothing'
 import type { ExpressionName } from '../three/avatar/face'
 import type { HairStyle } from '../three/avatar/hair'
+import type { HatStyle, GlassesStyle, EarringStyle } from '../three/avatar/accessories'
 
 /** Everything about how the avatar looks. Kept flat so the 3D layer can apply
  *  a whole appearance in one pass without diffing nested objects. */
@@ -13,6 +14,13 @@ export interface AvatarAppearance {
   topColor: string
   bottomColor: string
   shoesColor: string
+  glovesColor: string
+  hatColor: string
+  /** Shared by glasses and earrings — both read as metal trim. */
+  accentColor: string
+  hat: HatStyle
+  glasses: GlassesStyle
+  earrings: EarringStyle
   outfit: Outfit
   hairStyle: HairStyle
   expression: ExpressionName
@@ -31,7 +39,13 @@ export const DEFAULT_APPEARANCE: AvatarAppearance = {
   topColor: '#3b6ea5',
   bottomColor: '#2f4858',
   shoesColor: '#232329',
-  outfit: { top: 'tshirt', bottom: 'trousers', shoes: true },
+  glovesColor: '#2f4858',
+  hatColor: '#8e4585',
+  accentColor: '#c9a227',
+  hat: 'none',
+  glasses: 'none',
+  earrings: 'none',
+  outfit: { top: 'tshirt', bottom: 'trousers', shoes: true, gloves: false },
   hairStyle: 'coils',
   expression: 'happy',
   height: 1,
@@ -64,9 +78,16 @@ interface AvatarStore extends AvatarAppearance {
   setTopColor: (color: string) => void
   setBottomColor: (color: string) => void
   setShoesColor: (color: string) => void
+  setGlovesColor: (color: string) => void
+  setHatColor: (color: string) => void
+  setAccentColor: (color: string) => void
   setTop: (style: TopStyle) => void
   setBottom: (style: BottomStyle) => void
   setShoes: (on: boolean) => void
+  setGloves: (on: boolean) => void
+  setHat: (style: HatStyle) => void
+  setGlasses: (style: GlassesStyle) => void
+  setEarrings: (style: EarringStyle) => void
   setHairStyle: (style: HairStyle) => void
   setExpression: (expression: ExpressionName) => void
   setHeight: (height: number) => void
@@ -114,6 +135,13 @@ export const useAvatarStore = create<AvatarStore>()(
       setTop: (top) => set((s) => ({ outfit: { ...s.outfit, top } })),
       setBottom: (bottom) => set((s) => ({ outfit: { ...s.outfit, bottom } })),
       setShoes: (shoes) => set((s) => ({ outfit: { ...s.outfit, shoes } })),
+      setGloves: (gloves) => set((s) => ({ outfit: { ...s.outfit, gloves } })),
+      setGlovesColor: (glovesColor) => set({ glovesColor }),
+      setHatColor: (hatColor) => set({ hatColor }),
+      setAccentColor: (accentColor) => set({ accentColor }),
+      setHat: (hat) => set({ hat }),
+      setGlasses: (glasses) => set({ glasses }),
+      setEarrings: (earrings) => set({ earrings }),
       reset: () => set({ ...DEFAULT_APPEARANCE }),
     }),
     {
@@ -128,6 +156,12 @@ export const useAvatarStore = create<AvatarStore>()(
         topColor: state.topColor,
         bottomColor: state.bottomColor,
         shoesColor: state.shoesColor,
+        glovesColor: state.glovesColor,
+        hatColor: state.hatColor,
+        accentColor: state.accentColor,
+        hat: state.hat,
+        glasses: state.glasses,
+        earrings: state.earrings,
         outfit: state.outfit,
         hairStyle: state.hairStyle,
         expression: state.expression,
