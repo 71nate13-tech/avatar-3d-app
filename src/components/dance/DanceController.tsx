@@ -9,8 +9,7 @@ export default function DanceController() {
 
   return (
     <section className="space-y-2">
-      <h3 className="text-sm font-medium text-white/80">Dance</h3>
-
+      {/* No heading: the collapsible section this sits inside already has one. */}
       {status === 'loading' && <p className="text-xs text-white/40">Loading character…</p>}
 
       {status === 'fallback' && (
