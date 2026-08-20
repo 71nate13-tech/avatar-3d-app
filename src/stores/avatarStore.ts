@@ -52,6 +52,32 @@ export const DEFAULT_APPEARANCE: AvatarAppearance = {
   build: 0,
 }
 
+/** The appearance fields and nothing else, lifted out of a state object that
+ *  also carries `tintable` and every setter. Used both for what gets written
+ *  to storage and for taking a snapshot of the current look, so the two can
+ *  never disagree about which fields make up an avatar. */
+export function pickAppearance(state: AvatarAppearance): AvatarAppearance {
+  return {
+    skinColor: state.skinColor,
+    hairColor: state.hairColor,
+    eyeColor: state.eyeColor,
+    topColor: state.topColor,
+    bottomColor: state.bottomColor,
+    shoesColor: state.shoesColor,
+    glovesColor: state.glovesColor,
+    hatColor: state.hatColor,
+    accentColor: state.accentColor,
+    hat: state.hat,
+    glasses: state.glasses,
+    earrings: state.earrings,
+    outfit: { ...state.outfit },
+    hairStyle: state.hairStyle,
+    expression: state.expression,
+    height: state.height,
+    build: state.build,
+  }
+}
+
 /** Which parts the loaded model actually exposes. A control wired to nothing
  *  looks broken — you click it and the avatar does not change — so the UI hides
  *  those rather than offering a dead one. The placeholder figure has no
@@ -93,6 +119,10 @@ interface AvatarStore extends AvatarAppearance {
   setHeight: (height: number) => void
   setBuild: (build: number) => void
   setTintable: (parts: TintableParts) => void
+  /** Puts on a whole appearance at once, which is what arriving with a traded
+   *  code does. One update rather than eighteen, so the 3D layer rebuilds the
+   *  outfit and the hair a single time instead of once per field. */
+  wear: (appearance: AvatarAppearance) => void
   reset: () => void
 }
 
@@ -142,6 +172,7 @@ export const useAvatarStore = create<AvatarStore>()(
       setHat: (hat) => set({ hat }),
       setGlasses: (glasses) => set({ glasses }),
       setEarrings: (earrings) => set({ earrings }),
+      wear: (appearance) => set({ ...appearance }),
       reset: () => set({ ...DEFAULT_APPEARANCE }),
     }),
     {
@@ -149,25 +180,10 @@ export const useAvatarStore = create<AvatarStore>()(
       // Bump when the shape of what is stored changes. Without it, a saved
       // look from an older build rehydrates into fields that no longer exist.
       version: 1,
-      partialize: (state) => ({
-        skinColor: state.skinColor,
-        hairColor: state.hairColor,
-        eyeColor: state.eyeColor,
-        topColor: state.topColor,
-        bottomColor: state.bottomColor,
-        shoesColor: state.shoesColor,
-        glovesColor: state.glovesColor,
-        hatColor: state.hatColor,
-        accentColor: state.accentColor,
-        hat: state.hat,
-        glasses: state.glasses,
-        earrings: state.earrings,
-        outfit: state.outfit,
-        hairStyle: state.hairStyle,
-        expression: state.expression,
-        height: state.height,
-        build: state.build,
-      }),
+      // Wrapped rather than passed directly: handing the bare function over
+      // widens its parameter to the whole store and TypeScript stops inferring
+      // the state type for every setter above.
+      partialize: (state) => pickAppearance(state),
     },
   ),
 )

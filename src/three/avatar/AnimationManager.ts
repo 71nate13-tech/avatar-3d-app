@@ -28,6 +28,12 @@ export class AnimationManager {
     return this.currentName
   }
 
+  /** The clip behind whatever is playing, so a model export can carry the
+   *  dance out with it rather than exporting a figure standing still. */
+  get currentClip(): THREE.AnimationClip | null {
+    return this.current?.getClip() ?? null
+  }
+
   play(name: string, fadeDuration = 0.35) {
     const next = this.actions.get(name)
     if (!next || next === this.current) return

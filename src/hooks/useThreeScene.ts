@@ -5,9 +5,11 @@ import { createHumanoid } from '../three/avatar/humanoid'
 import { MarioCamera } from '../three/camera/MarioCamera'
 import { loadCharacter } from '../three/avatar/AvatarModel'
 import { AnimationManager } from '../three/avatar/AnimationManager'
-import { useAvatarStore, type AvatarAppearance } from '../stores/avatarStore'
+import { useAvatarStore, pickAppearance, type AvatarAppearance } from '../stores/avatarStore'
+import { usePreviewStore } from '../stores/previewStore'
 import { useDanceStore } from '../stores/danceStore'
 import { useSceneStore } from '../stores/sceneStore'
+import { exportGlb } from '../lib/exportModel'
 import { CHARACTER_URL, DANCE_URLS, EMBEDDED_CLIP_ID } from '../data/dances'
 
 /**
@@ -138,8 +140,16 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
         lastOutfit = { ...outfit }
       }
     }
-    applyAppearance(useAvatarStore.getState())
-    const unsubscribeAppearance = useAvatarStore.subscribe(applyAppearance)
+    // A preview wins while one is set, which is how a scanned avatar is shown
+    // without touching the one this device actually owns. Both stores feed the
+    // same apply pass rather than one overwriting the other.
+    const showing = () =>
+      usePreviewStore.getState().appearance ?? pickAppearance(useAvatarStore.getState())
+    const applyCurrent = () => applyAppearance(showing())
+
+    applyCurrent()
+    const unsubscribeAppearance = useAvatarStore.subscribe(applyCurrent)
+    const unsubscribePreview = usePreviewStore.subscribe(applyCurrent)
 
     let animations: AnimationManager | null = null
     let unsubscribeDance: (() => void) | null = null
@@ -194,10 +204,17 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
           head: hasHead,
           body: character.hasBodyShape,
         })
-        applyAppearance(useAvatarStore.getState())
+        applyCurrent()
 
         animations = new AnimationManager(character.mixer, character.clips)
         disposeCharacter = character.dispose
+
+        // Only offered once the real character is here. The placeholder is a
+        // stack of primitives with no skeleton, and exporting it would hand
+        // somebody a file that is not the avatar they were looking at.
+        useSceneStore.getState().setExportModel(() =>
+          exportGlb(character.group, { animation: animations?.currentClip ?? null }),
+        )
 
         const available = animations.names
         useDanceStore.getState().setAvailable(available)
@@ -266,9 +283,11 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement | nul
       cancelled = true
       cancelAnimationFrame(frame)
       useSceneStore.getState().setCapture(null)
+      useSceneStore.getState().setExportModel(null)
       unsubscribeTheme()
       observer.disconnect()
       unsubscribeAppearance()
+      unsubscribePreview()
       unsubscribeDance?.()
       camera.dispose()
       disposeCharacter?.()

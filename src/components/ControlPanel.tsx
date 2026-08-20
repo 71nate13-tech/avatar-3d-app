@@ -9,6 +9,9 @@ import Section from './customization/Section'
 import DanceController from './dance/DanceController'
 import ShareButton from './ShareButton'
 import MomentCodes from './MomentCodes'
+import TradePanel from './trade/TradePanel'
+import Collection from './trade/Collection'
+import { useCollectionStore } from '../stores/collectionStore'
 import { DANCES } from '../data/dances'
 import { HAIR_STYLES } from '../three/avatar/hair'
 import { HAT_STYLES, GLASSES_STYLES, EARRING_STYLES } from '../three/avatar/accessories'
@@ -56,11 +59,14 @@ type SectionName =
   | 'clothing'
   | 'accessories'
   | 'skin'
+  | 'trade'
+  | 'collection'
   | 'moments'
 
 export default function ControlPanel() {
   const s = useAvatarStore()
   const currentDance = useDanceStore((d) => d.current)
+  const kept = useCollectionStore((c) => c.avatars.length)
   const { tintable, outfit } = s
   // One section at a time. With every group open the panel ran to several
   // screens, which is what made it worth collapsing in the first place.
@@ -282,6 +288,24 @@ export default function ControlPanel() {
             )}
           </Section>
         )}
+        <Section
+          title="Trade"
+          summary="Share or receive"
+          open={open === 'trade'}
+          onToggle={() => toggle('trade')}
+        >
+          <TradePanel />
+        </Section>
+
+        <Section
+          title="Collection"
+          summary={kept === 0 ? 'Empty' : `${kept} kept`}
+          open={open === 'collection'}
+          onToggle={() => toggle('collection')}
+        >
+          <Collection />
+        </Section>
+
         <Section
           title="Brand moments"
           summary="Scan to try"

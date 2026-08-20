@@ -30,6 +30,11 @@ interface SceneStore {
    *  is up, which is what disables the share button. */
   capture: (() => string) | null
   setCapture: (capture: (() => string) | null) => void
+  /** Bakes the avatar into a glb. Null until the real character has loaded —
+   *  the placeholder figure is not worth exporting, and saying so by leaving
+   *  this unset is what greys the button out. */
+  exportModel: (() => Promise<Blob>) | null
+  setExportModel: (exportModel: (() => Promise<Blob>) | null) => void
   theme: SceneTheme
   setTheme: (theme: SceneTheme) => void
 }
@@ -37,6 +42,8 @@ interface SceneStore {
 export const useSceneStore = create<SceneStore>((set) => ({
   capture: null,
   setCapture: (capture) => set({ capture }),
+  exportModel: null,
+  setExportModel: (exportModel) => set({ exportModel }),
   theme: DEFAULT_THEME,
   setTheme: (theme) => set({ theme }),
 }))
