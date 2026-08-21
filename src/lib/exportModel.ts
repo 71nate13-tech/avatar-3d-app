@@ -61,8 +61,9 @@ export async function exportGlb(
         embedImages: true,
         // A clip with no tracks would still be written out as a named
         // animation with nothing in it, which reads in a 3D viewer as a dance
-        // that exists and does nothing. The idle clip is exactly that, so an
-        // empty one is dropped rather than exported.
+        // that exists and does nothing. The loader no longer hands one over —
+        // it picks clips by having tracks rather than by position — but this
+        // stays as the last check before something leaves the app.
         animations:
           options.animation && options.animation.tracks.length > 0 ? [options.animation] : [],
         // The hair and accessories hang off the head bone; without this the

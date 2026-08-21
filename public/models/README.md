@@ -12,14 +12,21 @@ Anyone cloning the repo downloads their own copies using the steps below.
 
 ```
 public/models/
-  character.fbx        <- the character, With Skin
+  character.fbx        <- the character, With Skin, carrying the idle
   dances/
-    idle.fbx           <- animation only, Without Skin
-    hiphop.fbx
+    hiphop.fbx         <- animation only, Without Skin
     salsa.fbx
     robot.fbx
     shuffle.fbx
+    uprock.fbx
+    rumba.fbx
+    house.fbx
 ```
+
+There is no `idle.fbx`. Downloading the character With Skin bundles whichever
+animation was selected at the time, so the idle is already inside
+`character.fbx` and fetching it again as a dance would parse the same few
+megabytes twice.
 
 The app falls back to the built-in primitive figure when `character.fbx` is
 missing, so a fresh clone still runs with an empty folder.
@@ -29,14 +36,21 @@ missing, so a fresh clone still runs with an empty folder.
 Sign in at [mixamo.com](https://www.mixamo.com) with a free Adobe account.
 
 **1. The character** — from the Characters tab, choose **Y Bot** or **X Bot**.
-Then Download with:
+Then go to the Animations tab, pick an idle (**Breathing Idle** works well),
+and Download with:
 
 | Setting | Value |
 |---|---|
 | Format | **FBX Binary (.fbx)** |
-| Pose | **T-pose** |
+| Skin | **With Skin** |
+| Frames per Second | **30** |
+| Keyframe Reduction | **none** |
 
 Save as `character.fbx`.
+
+Downloading it in **T-pose** instead is the one thing to avoid. It gives a file
+with no animation in it, and the app has nowhere else to get an idle from, so
+the avatar stands with its arms straight out whenever it is not dancing.
 
 Y Bot and X Bot are recommended rather than required. They are untextured
 mannequins whose stylised look sits closer to Bitmoji than a photoreal human,
@@ -92,3 +106,7 @@ filenames need one.
   `AvatarModel` scales by 0.01 on load.
 - **Clip names.** Mixamo calls almost every clip `mixamo.com`, so clips are keyed
   by the filename they came from rather than the name inside the file.
+- **Empty animation stacks.** Some exports carry an empty `Take 001` beside the
+  real clip, and the order varies between files — `hiphop.fbx` puts the real one
+  first, `character.fbx` puts it second. The loader picks the first clip that has
+  any tracks rather than the first one in the list.

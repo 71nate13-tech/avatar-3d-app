@@ -79,6 +79,24 @@ function pinRootMotion(clip: THREE.AnimationClip) {
   }
 }
 
+/**
+ * The first clip in a file that actually animates something.
+ *
+ * An FBX carries a list of animation stacks, and Mixamo's exports frequently
+ * include an empty `Take 001` next to the real clip. The order is not fixed:
+ * hiphop and salsa put the real clip first, while the character file puts it
+ * second. Reaching for index 0 therefore worked for the dances by luck and
+ * picked the empty stack for the idle — which is why the avatar stood with its
+ * arms straight out instead of breathing, and why exporting on idle produced a
+ * `.glb` whose animation had no channels.
+ *
+ * An empty stack is indistinguishable from a real one by name or by order, so
+ * the only reliable question to ask is whether it has any tracks.
+ */
+export function firstAnimatedClip(clips: THREE.AnimationClip[]): THREE.AnimationClip | undefined {
+  return clips.find((clip) => clip.tracks.length > 0)
+}
+
 const loader = new FBXLoader()
 
 function load(url: string): Promise<THREE.Group> {
@@ -184,7 +202,7 @@ export async function loadCharacter(
   const mixer = new THREE.AnimationMixer(group)
   const clips = new Map<string, THREE.AnimationClip>()
 
-  const embedded = embeddedClipName ? group.animations[0] : undefined
+  const embedded = embeddedClipName ? firstAnimatedClip(group.animations) : undefined
   if (embedded && embeddedClipName) {
     embedded.name = embeddedClipName
     pinRootMotion(embedded)
@@ -195,7 +213,7 @@ export async function loadCharacter(
   const results = await Promise.allSettled(
     Object.entries(danceUrls).map(async ([name, url]) => {
       const asset = await load(url)
-      const clip = asset.animations[0]
+      const clip = firstAnimatedClip(asset.animations)
       if (!clip) throw new Error(`${url} contains no animation`)
       // Mixamo names nearly every clip "mixamo.com", so the filename is the
       // only thing that actually distinguishes one dance from another.
